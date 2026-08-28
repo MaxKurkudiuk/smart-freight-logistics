@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Gateways/">
+    <Project Path="src/Gateways/YarpGateway/YarpGateway.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/">
+    <Project Path="src/Services/IdentityService/IdentityService.csproj" />
+  </Folder>
+  <Folder Name="/src/Services/OrderService/">
+    <Project Path="src/Services/OrderService/OrderService.API/OrderService.API.csproj" />
+    <Project Path="src/Services/OrderService/OrderService.Application/OrderService.Application.csproj" />
+    <Project Path="src/Services/OrderService/OrderService.Domain/OrderService.Domain.csproj" />
+    <Project Path="src/Services/OrderService/OrderService.Infrastructure/OrderService.Infrastructure.csproj" />
+  </Folder>
+</Solution>
