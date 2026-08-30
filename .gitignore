@@ -481,3 +481,6 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 /docs
+
+# Hide local eco variables with passwords
+.env
