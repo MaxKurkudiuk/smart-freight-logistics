@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/" />
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/Logging/BuildingBlocks.Logging.csproj" />
+  </Folder>
   <Folder Name="/src/Gateways/">
     <Project Path="src/Gateways/YarpGateway/YarpGateway.csproj" />
   </Folder>
