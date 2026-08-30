@@ -1,19 +1,9 @@
+using BuildingBlocks.Logging;
 using Serilog;
-using YarpGateway;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Serilog by reading setup parameters directly from appsettings.json configuration file
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .CreateLogger();
-
-// Force the host builder engine to substitute the built-in Microsoft logger with Serilog extension
-builder.Host.UseSerilog();
-
-// REGISTER SERVICES IN THE DI CONTAINER:
-// Register the factory-based CorrelationIdMiddleware instance as a transient component
-builder.Services.AddTransient<CorrelationIdMiddleware>();
+builder.AddSharedLogging();
 
 // Add Yarp Reverse Proxy services by reading config from appsettings.json
 builder.Services.AddReverseProxy()
@@ -21,9 +11,8 @@ builder.Services.AddReverseProxy()
 
 var app = builder.Build();
 
-// CONFIGURE THE HTTP REQUEST PIPELINE (MIDDLEWARES):
-// Resolve and trigger the CorrelationIdMiddleware right at the entry point of the pipeline
-app.UseMiddleware<CorrelationIdMiddleware>();
+// One line to activate the Correlation ID middleware at the start of the pipeline
+app.UseSharedLogging();
 
 app.UseRouting();
 
