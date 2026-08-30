@@ -11,16 +11,19 @@ builder.AddSharedLogging();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb");
+var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb")
+    ?? throw new InvalidOperationException("Connection string 'IdentityDb' not found.");
+
 var dbPassword = builder.Configuration["DatabaseSettings:Password"];
 
-var connectionBuilder = new NpgsqlConnectionStringBuilder(baseConnectionString)
+var connectionBuilder = new NpgsqlConnectionStringBuilder(baseConnectionString);
+if (!string.IsNullOrWhiteSpace(dbPassword))
 {
-    Password = dbPassword
-};
+    connectionBuilder.Password = dbPassword;
+}
 
 builder.Services.AddDbContext<IdentityDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString(connectionBuilder.ConnectionString)));
+    options.UseNpgsql(connectionBuilder.ConnectionString));
 
 var app = builder.Build();
 
