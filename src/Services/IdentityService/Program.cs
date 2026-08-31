@@ -12,6 +12,8 @@ builder.AddSharedLogging();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddPasswordHasher(builder.Configuration);
+builder.Services.AddJwtGenerator(builder.Configuration);
+builder.Services.AddControllers();
 
 var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb")
     ?? throw new InvalidOperationException("Connection string 'IdentityDb' not found.");
@@ -33,7 +35,7 @@ app.UseHttpsRedirection();
 app.UseSharedLogging();
 
 app.UseRouting();
-//app.MapControllers();
+app.MapControllers();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
