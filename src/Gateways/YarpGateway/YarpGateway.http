@@ -1,0 +1,84 @@
+@Gateway_HostAddress = http://localhost:5000
+@Identity_HostAddress = http://localhost:5001
+
+### Gateway: Register via YARP — 201 (Anonymous)
+POST {{Gateway_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "gateway-smoke@example.com",
+  "password": "P@ssw0rd123",
+  "fullName": "Gateway Smoke"
+}
+
+###
+
+### Gateway: Register duplicate → 409
+POST {{Gateway_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "gateway-smoke@example.com",
+  "password": "P@ssw0rd123",
+  "fullName": "Gateway Smoke"
+}
+
+###
+
+# @name login
+### Gateway: Login via YARP — 200 with token
+POST {{Gateway_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "gateway-smoke@example.com",
+  "password": "P@ssw0rd123"
+}
+
+###
+
+### Gateway: Login invalid → 401
+POST {{Gateway_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "gateway-smoke@example.com",
+  "password": "wrongpass"
+}
+
+###
+
+### Gateway: Me via YARP — 200 with Bearer token
+GET {{Gateway_HostAddress}}/api/auth/me
+Authorization: Bearer {{login.response.body.$.token}}
+
+###
+
+### Gateway: Me without token → 401
+GET {{Gateway_HostAddress}}/api/auth/me
+
+###
+
+### Gateway: Me with invalid token → 401
+GET {{Gateway_HostAddress}}/api/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid
+
+###
+
+### Gateway: Orders route — 401 without token (ClientPolicy)
+GET {{Gateway_HostAddress}}/api/orders
+Accept: application/json
+
+###
+
+### Direct Identity (bypass YARP) — 201 for comparison
+POST {{Identity_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "direct-smoke@example.com",
+  "password": "P@ssw0rd123",
+  "fullName": "Direct Smoke"
+}
+
+###

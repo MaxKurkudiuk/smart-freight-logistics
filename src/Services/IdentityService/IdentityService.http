@@ -1,6 +1,71 @@
-@IdentityService_HostAddress = http://localhost:5258
+@IdentityService_HostAddress = http://localhost:5001
 
-GET {{IdentityService_HostAddress}}/weatherforecast/
-Accept: application/json
+### Register — always Client, 201 without token
+POST {{IdentityService_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "client@example.com",
+  "password": "P@ssw0rd123",
+  "fullName": "John Doe"
+}
+
+###
+
+### Register duplicate → 409
+POST {{IdentityService_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "client@example.com",
+  "password": "P@ssw0rd123",
+  "fullName": "John Doe"
+}
+
+###
+
+### Register validation 400 (short password)
+POST {{IdentityService_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "bad@example.com",
+  "password": "short",
+  "fullName": "Bad"
+}
+
+###
+
+# @name login
+### Login — 200 with token
+POST {{IdentityService_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "client@example.com",
+  "password": "P@ssw0rd123"
+}
+
+###
+
+### Login invalid → 401
+POST {{IdentityService_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "client@example.com",
+  "password": "wrongpass"
+}
+
+###
+
+### Me — 200 with Bearer token
+GET {{IdentityService_HostAddress}}/api/auth/me
+Authorization: Bearer {{login.response.body.$.token}}
+
+###
+
+### Me without token → 401
+GET {{IdentityService_HostAddress}}/api/auth/me
 
 ###
