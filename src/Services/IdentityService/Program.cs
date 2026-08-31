@@ -1,5 +1,6 @@
 using BuildingBlocks.Logging;
 using IdentityService.Data;
+using IdentityService.Services;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -10,6 +11,24 @@ builder.AddSharedLogging();
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddPasswordHasher(builder.Configuration);
+builder.Services.AddJwtGenerator(builder.Configuration);
+builder.Services.AddIdentityAuth(builder.Configuration);
+builder.Services.AddControllers();
+
+var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb")
+    ?? throw new InvalidOperationException("Connection string 'IdentityDb' not found.");
+
+var dbPassword = builder.Configuration["DatabaseSettings:Password"];
+
+var connectionBuilder = new NpgsqlConnectionStringBuilder(baseConnectionString);
+if (!string.IsNullOrWhiteSpace(dbPassword))
+{
+    connectionBuilder.Password = dbPassword;
+}
+
+builder.Services.AddDbContext<IdentityDbContext>(options =>
+    options.UseNpgsql(connectionBuilder.ConnectionString));
 
 var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb")
     ?? throw new InvalidOperationException("Connection string 'IdentityDb' not found.");
@@ -27,15 +46,18 @@ builder.Services.AddDbContext<IdentityDbContext>(options =>
 
 var app = builder.Build();
 
-app.UseHttpsRedirection();
 app.UseSharedLogging();
 
 app.UseRouting();
-//app.MapControllers();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    // Seed default users (dev hardcoded) — must run before handling requests
+    await IdentitySeeder.SeedAsync(app.Services);
+    // Configure the HTTP request pipeline.
     app.MapOpenApi();
 }
 
