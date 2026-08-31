@@ -11,6 +11,7 @@ builder.Services.AddReverseProxy()
 
 var app = builder.Build();
 
+app.UseHttpsRedirection();  // Keep this only on the Gateway
 // One line to activate the Correlation ID middleware at the start of the pipeline
 app.UseSharedLogging();
 
