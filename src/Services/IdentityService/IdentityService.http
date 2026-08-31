@@ -57,3 +57,14 @@ Content-Type: application/json
 }
 
 ###
+
+### Me — 200 with Bearer token
+GET {{IdentityService_HostAddress}}/api/auth/me
+Authorization: Bearer {{login.response.body.token}}
+
+###
+
+### Me without token → 401
+GET {{IdentityService_HostAddress}}/api/auth/me
+
+###

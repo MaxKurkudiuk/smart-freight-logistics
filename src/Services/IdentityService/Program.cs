@@ -13,6 +13,7 @@ builder.AddSharedLogging();
 builder.Services.AddOpenApi();
 builder.Services.AddPasswordHasher(builder.Configuration);
 builder.Services.AddJwtGenerator(builder.Configuration);
+builder.Services.AddIdentityAuth(builder.Configuration);
 builder.Services.AddControllers();
 
 var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb")
@@ -35,6 +36,8 @@ app.UseHttpsRedirection();
 app.UseSharedLogging();
 
 app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 // Configure the HTTP request pipeline.

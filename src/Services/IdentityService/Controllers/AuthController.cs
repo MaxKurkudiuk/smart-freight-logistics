@@ -1,7 +1,10 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using IdentityService.Data;
 using IdentityService.DTOs;
 using IdentityService.Entities;
 using IdentityService.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -108,14 +111,41 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
         });
     }
 
-    // Placeholder for CreatedAtAction target until GET /me is implemented in step 2.4.
-    // Keeps 201 Location header valid without requiring auth. Will be replaced by real GetMe.
+    // Placeholder for CreatedAtAction Location header — anonymous, keeps 201 Location valid.
+    // Real authenticated profile is GET /api/auth/me below.
     [HttpGet("users/{id:guid}", Name = "GetUserById")]
     [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> GetMePlaceholder(Guid id, CancellationToken ct)
     {
         var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct);
         if (user is null) return NotFound();
+        return Ok(new UserResponse
+        {
+            Id = user.Id,
+            Email = user.Email,
+            FullName = user.FullName,
+            Role = user.Role,
+            CreatedAt = user.CreatedAt
+        });
+    }
+
+    /// <summary>Current authenticated user profile.</summary>
+    [Authorize]
+    [HttpGet("me")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Me(CancellationToken ct)
+    {
+        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                  ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                  ?? User.FindFirstValue("sub");
+
+        if (!Guid.TryParse(sub, out var userId))
+            return Unauthorized(new { message = "Invalid token." });
+
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user is null) return NotFound(new { message = "User not found." });
+
         return Ok(new UserResponse
         {
             Id = user.Id,
