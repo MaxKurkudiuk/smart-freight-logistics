@@ -32,7 +32,6 @@ builder.Services.AddDbContext<IdentityDbContext>(options =>
 
 var app = builder.Build();
 
-app.UseHttpsRedirection();
 app.UseSharedLogging();
 
 app.UseRouting();

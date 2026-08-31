@@ -1,4 +1,4 @@
-@IdentityService_HostAddress = http://localhost:5258
+@IdentityService_HostAddress = http://localhost:5001
 
 ### Register — always Client, 201 without token
 POST {{IdentityService_HostAddress}}/api/auth/register
