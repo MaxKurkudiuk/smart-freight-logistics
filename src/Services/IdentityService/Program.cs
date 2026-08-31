@@ -1,5 +1,6 @@
 using BuildingBlocks.Logging;
 using IdentityService.Data;
+using IdentityService.Services;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -10,6 +11,7 @@ builder.AddSharedLogging();
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddPasswordHasher(builder.Configuration);
 
 var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb")
     ?? throw new InvalidOperationException("Connection string 'IdentityDb' not found.");
