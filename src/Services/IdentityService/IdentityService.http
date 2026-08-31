@@ -36,6 +36,7 @@ Content-Type: application/json
 
 ###
 
+# @name login
 ### Login — 200 with token
 POST {{IdentityService_HostAddress}}/api/auth/login
 Content-Type: application/json
@@ -60,7 +61,7 @@ Content-Type: application/json
 
 ### Me — 200 with Bearer token
 GET {{IdentityService_HostAddress}}/api/auth/me
-Authorization: Bearer {{login.response.body.token}}
+Authorization: Bearer {{login.response.body.$.token}}
 
 ###
 
