@@ -1,6 +1,37 @@
 @IdentityService_HostAddress = http://localhost:5258
 
-GET {{IdentityService_HostAddress}}/weatherforecast/
-Accept: application/json
+### Register — always Client, 201 without token
+POST {{IdentityService_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "client@example.com",
+  "password": "P@ssw0rd123",
+  "fullName": "John Doe"
+}
+
+###
+
+### Register duplicate → 409
+POST {{IdentityService_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "client@example.com",
+  "password": "P@ssw0rd123",
+  "fullName": "John Doe"
+}
+
+###
+
+### Register validation 400 (short password)
+POST {{IdentityService_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "bad@example.com",
+  "password": "short",
+  "fullName": "Bad"
+}
 
 ###
