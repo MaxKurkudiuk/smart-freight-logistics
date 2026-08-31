@@ -39,9 +39,11 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    // Seed default users (dev hardcoded) — must run before handling requests
+    await IdentitySeeder.SeedAsync(app.Services);
+    // Configure the HTTP request pipeline.
     app.MapOpenApi();
 }
 
