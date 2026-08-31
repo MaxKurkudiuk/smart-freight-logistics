@@ -1,3 +1,5 @@
+using IdentityService.Options;
+
 namespace IdentityService.Services;
 
 public static class ServiceCollectionExtensions
@@ -10,6 +12,13 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<PasswordHasherOptions>(configuration.GetSection(PasswordHasherOptions.SectionName));
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
+        return services;
+    }
+
+    public static IServiceCollection AddJwtGenerator(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+        services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
         return services;
     }
 }
