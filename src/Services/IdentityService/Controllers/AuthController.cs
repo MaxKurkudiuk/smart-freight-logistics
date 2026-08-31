@@ -9,10 +9,11 @@ namespace IdentityService.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher, ILogger<AuthController> logger) : ControllerBase
+public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher, IJwtTokenGenerator jwt, ILogger<AuthController> logger) : ControllerBase
 {
     private readonly IdentityDbContext _db = db;
     private readonly IPasswordHasher _hasher = hasher;
+    private readonly IJwtTokenGenerator _jwt = jwt;
     private readonly ILogger<AuthController> _logger = logger;
 
     /// <summary>Register new user. Always creates Client role. Returns 201 without token.</summary>
@@ -68,6 +69,43 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
 
         // 201 with Location to me endpoint (no token per spec)
         return CreatedAtAction(nameof(GetMePlaceholder), new { id = user.Id }, response);
+    }
+
+    /// <summary>Login with email/password. Returns JWT on success, 401 otherwise.</summary>
+    [HttpPost("login")]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
+    {
+        var email = request.Email.Trim().ToLowerInvariant();
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
+        if (user is null || !_hasher.VerifyPassword(request.Password, user.PasswordHash))
+        {
+            _logger.LogWarning("Login failed for {Email}", email);
+            return Unauthorized(new { message = "Invalid credentials." });
+        }
+
+        // Seamless rehash if iterations changed (e.g., 100k dev -> 600k prod)
+        if (_hasher.NeedsRehash(user.PasswordHash))
+        {
+            user.PasswordHash = _hasher.HashPassword(request.Password);
+            await _db.SaveChangesAsync(ct);
+            _logger.LogInformation("Password rehashed for {UserId}", user.Id);
+        }
+
+        var token = _jwt.GenerateToken(user, out var expiresAt);
+
+        _logger.LogInformation("User logged in {UserId} {Email}", user.Id, user.Email);
+
+        return Ok(new AuthResponse
+        {
+            Token = token,
+            ExpiresAt = expiresAt,
+            UserId = user.Id,
+            Role = user.Role
+        });
     }
 
     // Placeholder for CreatedAtAction target until GET /me is implemented in step 2.4.

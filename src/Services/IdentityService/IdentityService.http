@@ -35,3 +35,25 @@ Content-Type: application/json
 }
 
 ###
+
+### Login — 200 with token
+POST {{IdentityService_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "client@example.com",
+  "password": "P@ssw0rd123"
+}
+
+###
+
+### Login invalid → 401
+POST {{IdentityService_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "client@example.com",
+  "password": "wrongpass"
+}
+
+###
