@@ -30,20 +30,6 @@ if (!string.IsNullOrWhiteSpace(dbPassword))
 builder.Services.AddDbContext<IdentityDbContext>(options =>
     options.UseNpgsql(connectionBuilder.ConnectionString));
 
-var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb")
-    ?? throw new InvalidOperationException("Connection string 'IdentityDb' not found.");
-
-var dbPassword = builder.Configuration["DatabaseSettings:Password"];
-
-var connectionBuilder = new NpgsqlConnectionStringBuilder(baseConnectionString);
-if (!string.IsNullOrWhiteSpace(dbPassword))
-{
-    connectionBuilder.Password = dbPassword;
-}
-
-builder.Services.AddDbContext<IdentityDbContext>(options =>
-    options.UseNpgsql(connectionBuilder.ConnectionString));
-
 var app = builder.Build();
 
 app.UseSharedLogging();
