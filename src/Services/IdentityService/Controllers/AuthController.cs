@@ -61,14 +61,7 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
 
         _logger.LogInformation("User registered {UserId} {Email} {Role}", user.Id, user.Email, user.Role);
 
-        var response = new UserResponse
-        {
-            Id = user.Id,
-            Email = user.Email,
-            FullName = user.FullName,
-            Role = user.Role,
-            CreatedAt = user.CreatedAt
-        };
+        var response = new UserResponse(user.Id, user.Email, user.FullName, user.Role, user.CreatedAt);
 
         // 201 with Location to me endpoint (no token per spec)
         return CreatedAtAction(nameof(GetMePlaceholder), new { id = user.Id }, response);
@@ -102,13 +95,8 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
 
         _logger.LogInformation("User logged in {UserId} {Email}", user.Id, user.Email);
 
-        return Ok(new AuthResponse
-        {
-            Token = token,
-            ExpiresAt = expiresAt,
-            UserId = user.Id,
-            Role = user.Role
-        });
+        var response = new AuthResponse(token, expiresAt, user.Id, user.Role);
+        return Ok(response);
     }
 
     // Placeholder for CreatedAtAction Location header — anonymous, keeps 201 Location valid.
@@ -119,14 +107,8 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
     {
         var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct);
         if (user is null) return NotFound();
-        return Ok(new UserResponse
-        {
-            Id = user.Id,
-            Email = user.Email,
-            FullName = user.FullName,
-            Role = user.Role,
-            CreatedAt = user.CreatedAt
-        });
+        var response = new UserResponse(user.Id, user.Email, user.FullName, user.Role, user.CreatedAt);
+        return Ok(response);
     }
 
     /// <summary>Current authenticated user profile.</summary>
@@ -146,14 +128,8 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
         var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
         if (user is null) return NotFound(new { message = "User not found." });
 
-        return Ok(new UserResponse
-        {
-            Id = user.Id,
-            Email = user.Email,
-            FullName = user.FullName,
-            Role = user.Role,
-            CreatedAt = user.CreatedAt
-        });
+        var response = new UserResponse(user.Id, user.Email, user.FullName, user.Role, user.CreatedAt);
+        return Ok(response);
     }
 
     private static bool IsUniqueViolation(DbUpdateException ex)

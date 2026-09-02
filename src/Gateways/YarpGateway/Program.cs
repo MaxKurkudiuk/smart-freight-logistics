@@ -31,12 +31,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization(o =>
-{
-    o.AddPolicy("ClientPolicy", p => p.RequireRole("Client"));
-    o.AddPolicy("LogisticsManagerPolicy", p => p.RequireRole("LogisticsManager"));
-    o.AddPolicy("RPA_Bot_Policy", p => p.RequireRole("RpaBot"));
-});
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("ClientPolicy", p => p.RequireRole("Client"))
+    .AddPolicy("LogisticsManagerPolicy", p => p.RequireRole("LogisticsManager"))
+    .AddPolicy("RPA_Bot_Policy", p => p.RequireRole("RpaBot"));
 
 // Add Yarp Reverse Proxy services by reading config from appsettings.json
 builder.Services.AddReverseProxy()
