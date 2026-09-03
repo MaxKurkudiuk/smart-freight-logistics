@@ -1,8 +1,11 @@
 using BuildingBlocks.Logging;
+using OrderService.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddSharedLogging();
+
+builder.AddOrderDbContext();
 
 builder.Services.AddControllers();
 

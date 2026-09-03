@@ -21,8 +21,7 @@ public sealed class Order
     {
         if (clientId == Guid.Empty)
             throw new ArgumentException("ClientId is required.", nameof(clientId));
-        if (cargo is null)
-            throw new ArgumentNullException(nameof(cargo));
+        ArgumentNullException.ThrowIfNull(cargo);
         if (cargo.WeightKg <= 0)
             throw new ArgumentException("WeightKg must be > 0.", nameof(cargo));
         if (string.IsNullOrWhiteSpace(cargo.Origin))
