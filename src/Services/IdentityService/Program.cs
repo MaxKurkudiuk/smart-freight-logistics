@@ -1,8 +1,7 @@
 using BuildingBlocks.Logging;
 using IdentityService.Data;
+using IdentityService.Extensions;
 using IdentityService.Services;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,19 +15,7 @@ builder.Services.AddJwtGenerator(builder.Configuration);
 builder.Services.AddIdentityAuth(builder.Configuration);
 builder.Services.AddControllers();
 
-var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb")
-    ?? throw new InvalidOperationException("Connection string 'IdentityDb' not found.");
-
-var dbPassword = builder.Configuration["DatabaseSettings:Password"];
-
-var connectionBuilder = new NpgsqlConnectionStringBuilder(baseConnectionString);
-if (!string.IsNullOrWhiteSpace(dbPassword))
-{
-    connectionBuilder.Password = dbPassword;
-}
-
-builder.Services.AddDbContext<IdentityDbContext>(options =>
-    options.UseNpgsql(connectionBuilder.ConnectionString));
+builder.AddDbContext();
 
 var app = builder.Build();
 
