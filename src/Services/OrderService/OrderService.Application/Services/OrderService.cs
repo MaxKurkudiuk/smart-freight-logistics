@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using OrderService.Application.DTOs;
 using OrderService.Application.Interfaces;
 using OrderService.Domain.Entities;
@@ -62,9 +63,39 @@ public sealed class OrderService(IOrderRepository repo) : IOrderService
         if (!IsManager(actorRole) && order.ClientId != actorId)
             throw new UnauthorizedAccessException("Not owner.");
 
-        order.TransitionTo(request.NewStatus, actorId, request.Notes);
-        await _repo.SaveChangesAsync(ct);
-        return Map(order);
+        // Validate transition via domain (throws DomainException -> 409)
+        OrderStatusTransitions.Ensure(order.Status, request.NewStatus);
+        if (order.Status == request.NewStatus)
+        {
+            // Idempotent: already in target status — return current without DB write
+            return Map(order);
+        }
+
+        var fromStatus = order.Status;
+        var now = DateTime.UtcNow;
+
+        var history = new StatusHistory
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            FromStatus = fromStatus,
+            ToStatus = request.NewStatus,
+            ChangedAt = now,
+            ChangedBy = actorId,
+            Notes = request.Notes
+        };
+
+        // Use ExecuteUpdate to avoid DbUpdateConcurrencyException on tracked entity (xmin/field mapping edge)
+        var updated = await _repo.TryUpdateStatusWithHistoryAsync(orderId, request.NewStatus, now, history, ct);
+        if (!updated)
+            throw new DomainException("Concurrent update conflict — please retry.");
+
+        // Reload for response
+        var refreshed = await _repo.GetByIdAsync(orderId, ct) ?? order;
+        // Patch in-memory for mapping if reload missed updated values (should not)
+        refreshed.Status = request.NewStatus;
+        refreshed.UpdatedAt = now;
+        return Map(refreshed);
     }
 
     private static bool IsManager(string role)
