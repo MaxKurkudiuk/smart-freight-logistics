@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OrderService.Application.Interfaces;
 using OrderService.Domain.Entities;
+using OrderService.Domain.Enums;
 using OrderService.Infrastructure.Data;
 
 namespace OrderService.Infrastructure.Repositories;
@@ -37,4 +38,19 @@ public sealed class OrderRepository(OrderDbContext db) : IOrderRepository
 
     public Task SaveChangesAsync(CancellationToken ct = default)
         => _db.SaveChangesAsync(ct);
+
+    public async Task<bool> TryUpdateStatusWithHistoryAsync(Guid orderId, OrderStatus newStatus, DateTime updatedAt, StatusHistory history, CancellationToken ct = default)
+    {
+        var affected = await _db.Orders
+            .Where(o => o.Id == orderId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(o => o.Status, newStatus)
+                .SetProperty(o => o.UpdatedAt, updatedAt), ct);
+
+        if (affected == 0) return false;
+
+        _db.StatusHistories.Add(history);
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
 }

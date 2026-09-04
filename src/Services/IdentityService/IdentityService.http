@@ -36,8 +36,8 @@ Content-Type: application/json
 
 ###
 
-# @name login
 ### Login — 200 with token
+# @name login
 POST {{IdentityService_HostAddress}}/api/auth/login
 Content-Type: application/json
 

@@ -1,4 +1,5 @@
 using OrderService.Domain.Entities;
+using OrderService.Domain.Enums;
 
 namespace OrderService.Application.Interfaces;
 
@@ -9,4 +10,5 @@ public interface IOrderRepository
     Task<IReadOnlyList<Order>> ListAllAsync(CancellationToken ct = default);
     Task AddAsync(Order order, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);
+    Task<bool> TryUpdateStatusWithHistoryAsync(Guid orderId, OrderStatus newStatus, DateTime updatedAt, StatusHistory history, CancellationToken ct = default);
 }
