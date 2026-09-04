@@ -20,6 +20,7 @@ Accept: application/json
 ###
 
 ### Order direct — 201 create with Client token
+# @name createdOrderDirect
 POST {{OrderService.API_HostAddress}}/api/orders
 Content-Type: application/json
 Authorization: Bearer {{login.response.body.$.token}}
@@ -37,7 +38,6 @@ Authorization: Bearer {{login.response.body.$.token}}
 
 ###
 
-# @name createdOrderDirect
 ### Order direct — list with token
 GET {{OrderService.API_HostAddress}}/api/orders
 Authorization: Bearer {{login.response.body.$.token}}
@@ -45,13 +45,13 @@ Authorization: Bearer {{login.response.body.$.token}}
 ###
 
 ### Order direct — get by id
-GET {{OrderService.API_HostAddress}}/api/orders/{{createdOrderDirect.response.body.$[0].id}}
+GET {{OrderService.API_HostAddress}}/api/orders/{{createdOrderDirect.response.body.$.id}}
 Authorization: Bearer {{login.response.body.$.token}}
 
 ###
 
 ### Order direct — PUT status (Client cancel 5)
-PUT {{OrderService.API_HostAddress}}/api/orders/{{createdOrderDirect.response.body.$[0].id}}/status
+PUT {{OrderService.API_HostAddress}}/api/orders/{{createdOrderDirect.response.body.$.id}}/status
 Content-Type: application/json
 Authorization: Bearer {{login.response.body.$.token}}
 
