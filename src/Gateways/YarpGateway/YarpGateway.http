@@ -71,6 +71,61 @@ Accept: application/json
 
 ###
 
+### Gateway: Orders route — 201 create via YARP (ClientPolicy, uses token from login above)
+POST {{Gateway_HostAddress}}/api/orders
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.token}}
+
+{
+  "cargoType": "General",
+  "weightKg": 120.5,
+  "volumeM3": 2.3,
+  "origin": "Kyiv, UA",
+  "destination": "Warsaw, PL",
+  "description": "Smoke via Gateway",
+  "declaredValue": 5000,
+  "deadline": "2026-09-30T12:00:00Z"
+}
+
+###
+
+# @name createdOrder
+### Gateway: Orders route — list via YARP (Client sees own)
+GET {{Gateway_HostAddress}}/api/orders
+Authorization: Bearer {{login.response.body.$.token}}
+
+###
+
+### Gateway: Orders route — get by id via YARP
+GET {{Gateway_HostAddress}}/api/orders/{{createdOrder.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.token}}
+
+###
+
+### Gateway: Orders route — update status via YARP (Client Cancel)
+PUT {{Gateway_HostAddress}}/api/orders/{{createdOrder.response.body.$.id}}/status
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.token}}
+
+{
+  "newStatus": 5,
+  "notes": "Client cancel smoke"
+}
+
+###
+
+### Gateway: Orders route — update status invalid transition → 409 (Created -> Delivered blocked)
+PUT {{Gateway_HostAddress}}/api/orders/{{createdOrder.response.body.$.id}}/status
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.token}}
+
+{
+  "newStatus": 4,
+  "notes": "Invalid jump"
+}
+
+###
+
 ### Direct Identity (bypass YARP) — 201 for comparison
 POST {{Identity_HostAddress}}/api/auth/register
 Content-Type: application/json
