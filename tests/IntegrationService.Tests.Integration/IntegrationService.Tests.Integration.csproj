@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,7 +7,6 @@
     <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);xUnit1051;NU1903;MSB3277</NoWarn>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
-    <UserSecretsId>63f25b54-7ee3-4abb-b0be-b72e4d6246cd</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,12 +15,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="FluentAssertions" Version="8.10.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
+    <PackageReference Include="MassTransit.TestFramework" Version="8.3.5" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageReference Include="Testcontainers.PostgreSql" Version="4.2.0" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="Testcontainers.RabbitMq" Version="4.2.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -34,7 +31,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Services\OrderService\OrderService.API\OrderService.API.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\EventBus\BuildingBlocks.EventBus.csproj" />
+    <ProjectReference Include="..\..\src\Services\IntegrationService\IntegrationService.csproj" />
   </ItemGroup>
 
 </Project>

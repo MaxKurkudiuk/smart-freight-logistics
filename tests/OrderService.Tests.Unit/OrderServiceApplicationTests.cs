@@ -1,4 +1,6 @@
+using BuildingBlocks.EventBus.IntegrationEvents;
 using FluentAssertions;
+using MassTransit;
 using Moq;
 using OrderService.Application.DTOs;
 using OrderService.Application.Interfaces;
@@ -33,17 +35,20 @@ public sealed class OrderServiceApplicationTests
         DeclaredValue = 1000
     };
 
+    private static Mock<IPublishEndpoint> MockPublish() => new();
+
     [Fact]
     public async Task CreateAsync_ShouldCreateOrder_AndSave()
     {
         var mockRepo = new Mock<IOrderRepository>();
+        var mockPublish = MockPublish();
         Order? captured = null;
         mockRepo.Setup(r => r.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>()))
             .Callback<Order, CancellationToken>((o, _) => captured = o)
             .Returns(Task.CompletedTask);
         mockRepo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var svc = new Application.Services.OrderService(mockRepo.Object, mockPublish.Object);
         var clientId = Guid.NewGuid();
 
         var result = await svc.CreateAsync(clientId, ValidRequest());
@@ -58,10 +63,33 @@ public sealed class OrderServiceApplicationTests
     }
 
     [Fact]
+    public async Task CreateAsync_ShouldPublishIntegrationEvent()
+    {
+        var mockRepo = new Mock<IOrderRepository>();
+        var mockPublish = MockPublish();
+        mockRepo.Setup(r => r.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        mockRepo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var svc = new Application.Services.OrderService(mockRepo.Object, mockPublish.Object);
+        var clientId = Guid.NewGuid();
+        var req = ValidRequest();
+
+        await svc.CreateAsync(clientId, req);
+
+        mockPublish.Verify(p => p.Publish(It.Is<OrderCreatedIntegrationEvent>(e =>
+            e.ClientId == clientId &&
+            e.CargoType == req.CargoType &&
+            e.WeightKg == req.WeightKg &&
+            e.Origin == req.Origin.Trim() &&
+            e.Destination == req.Destination.Trim()), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task CreateAsync_ShouldThrow_WhenOriginEqualsDestination()
     {
         var mockRepo = new Mock<IOrderRepository>();
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var mockPublish = MockPublish();
+        var svc = new Application.Services.OrderService(mockRepo.Object, mockPublish.Object);
         var req = ValidRequest() with { Origin = "Kyiv, UA", Destination = "kyiv, UA" };
 
         var act = () => svc.CreateAsync(Guid.NewGuid(), req);
@@ -69,6 +97,7 @@ public sealed class OrderServiceApplicationTests
         await act.Should().ThrowAsync<ArgumentException>()
             .WithMessage("*Origin and Destination must differ*");
         mockRepo.Verify(r => r.AddAsync(It.IsAny<Order>(), It.IsAny<CancellationToken>()), Times.Never);
+        mockPublish.Verify(p => p.Publish(It.IsAny<OrderCreatedIntegrationEvent>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -78,7 +107,7 @@ public sealed class OrderServiceApplicationTests
         var mockRepo = new Mock<IOrderRepository>();
         mockRepo.Setup(r => r.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
 
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var svc = new Application.Services.OrderService(mockRepo.Object, MockPublish().Object);
         var otherClient = Guid.NewGuid();
 
         var result = await svc.GetByIdAsync(order.Id, otherClient, "Client");
@@ -93,7 +122,7 @@ public sealed class OrderServiceApplicationTests
         var mockRepo = new Mock<IOrderRepository>();
         mockRepo.Setup(r => r.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
 
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var svc = new Application.Services.OrderService(mockRepo.Object, MockPublish().Object);
 
         var result = await svc.GetByIdAsync(order.Id, Guid.NewGuid(), "LogisticsManager");
 
@@ -112,7 +141,7 @@ public sealed class OrderServiceApplicationTests
         mockRepo.Setup(r => r.ListByClientAsync(clientId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Order> { order1 });
 
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var svc = new Application.Services.OrderService(mockRepo.Object, MockPublish().Object);
 
         var result = await svc.ListAsync(clientId, "Client");
 
@@ -129,7 +158,7 @@ public sealed class OrderServiceApplicationTests
         mockRepo.Setup(r => r.ListAllAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Order> { Order.Create(Guid.NewGuid(), ValidCargo()), Order.Create(Guid.NewGuid(), ValidCargo()) });
 
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var svc = new Application.Services.OrderService(mockRepo.Object, MockPublish().Object);
 
         var result = await svc.ListAsync(Guid.NewGuid(), "LogisticsManager");
 
@@ -145,7 +174,7 @@ public sealed class OrderServiceApplicationTests
         var mockRepo = new Mock<IOrderRepository>();
         mockRepo.Setup(r => r.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
 
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var svc = new Application.Services.OrderService(mockRepo.Object, MockPublish().Object);
         var other = Guid.NewGuid();
 
         var act = () => svc.UpdateStatusAsync(order.Id, other, "Client", new UpdateStatusRequest { NewStatus = OrderStatus.Cancelled });
@@ -170,7 +199,7 @@ public sealed class OrderServiceApplicationTests
             .ReturnsAsync(order) // first call for validation
             .ReturnsAsync(order); // second call for reload (we patch status manually in service)
 
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var svc = new Application.Services.OrderService(mockRepo.Object, MockPublish().Object);
 
         var result = await svc.UpdateStatusAsync(order.Id, owner, "Client", new UpdateStatusRequest { NewStatus = OrderStatus.Cancelled, Notes = "client cancel" });
 
@@ -187,7 +216,7 @@ public sealed class OrderServiceApplicationTests
         var mockRepo = new Mock<IOrderRepository>();
         mockRepo.Setup(r => r.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
 
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var svc = new Application.Services.OrderService(mockRepo.Object, MockPublish().Object);
 
         var act = () => svc.UpdateStatusAsync(order.Id, owner, "Client", new UpdateStatusRequest { NewStatus = OrderStatus.Delivered });
 
@@ -202,7 +231,7 @@ public sealed class OrderServiceApplicationTests
         var mockRepo = new Mock<IOrderRepository>();
         mockRepo.Setup(r => r.GetByIdAsync(order.Id, It.IsAny<CancellationToken>())).ReturnsAsync(order);
 
-        var svc = new Application.Services.OrderService(mockRepo.Object);
+        var svc = new Application.Services.OrderService(mockRepo.Object, MockPublish().Object);
 
         var result = await svc.UpdateStatusAsync(order.Id, owner, "Client", new UpdateStatusRequest { NewStatus = OrderStatus.Created });
 

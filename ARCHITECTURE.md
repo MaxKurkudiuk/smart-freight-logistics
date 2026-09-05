@@ -1,6 +1,6 @@
 # Smart Freight Logistics — Architecture Documentation
 
-> Generated from GitNexus knowledge graph (`smart-freight-logistics`, commit `e9f79df`, indexed `2026-09-05T14:35:19Z`) + manual source verification. The graph now reports `23` execution flows and `21` functional areas after Stage 3 (OrderService Clean Architecture, JWT, YARP, tests, seed). This document supplements the graph with deterministic code reads, each cited as `file:line`.
+> Generated from GitNexus knowledge graph (`smart-freight-logistics`, commit `0045fa3`, indexed `2026-09-05T20:50:27Z`) + manual source verification. The graph now reports `26` execution flows and `26` functional areas after Stage 4 (Event-Driven: MassTransit/RabbitMQ, IntegrationService, RpaBot). This document supplements the graph with deterministic code reads, each cited as `file:line`.
 
 ---
 
@@ -16,11 +16,12 @@ Smart Freight Logistics is a **.NET 10 microservices** system for freight order 
 | Identity DB | EF Core 10.0.11 + Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3, PostgreSQL 16 | `src/Services/IdentityService/IdentityService.csproj:15`, `docker/docker-compose.yml:6` |
 | Auth | Microsoft.AspNetCore.Authentication.JwtBearer 10.0.11 (JWT Policies planned) | `src/Services/IdentityService/IdentityService.csproj:11` |
 | Cache | Redis 7 (StackExchange.Redis planned) | `docker/docker-compose.yml:38` |
-| Infra | Docker Compose (postgres, redis, pgAdmin) on `logistics-network` bridge | `docker/docker-compose.yml:53` |
+| Broker | RabbitMQ 3-management-alpine + MassTransit 8.3.5 | `docker/docker-compose.yml:49`, `src/BuildingBlocks/EventBus/BuildingBlocks.EventBus.csproj:10` |
+| Infra | Docker Compose (postgres, redis, pgAdmin, rabbitmq, integration-service) on `logistics-network` bridge | `docker/docker-compose.yml:76` |
 
-**Current maturity:** Stages 1 (Foundation), 2 (Identity + JWT + YARP policies) and 3 (OrderService Clean Architecture, CRUD, tests, seed) are implemented. Stages 4-7 (Event-Driven, Tracking, CQRS, Prod Readiness) remain planned per `docs/Smart Freight Logistics main plan.md:3`.
+**Current maturity:** Stages 1 (Foundation), 2 (Identity + JWT + YARP policies), 3 (OrderService Clean Architecture, CRUD, tests, seed) and **4 (Event-Driven: Domain Events → Integration Events → MassTransit/RabbitMQ → IntegrationService RPA Bridge → RpaBot Customs)** are implemented. Stages 5-7 (Tracking, CQRS, Prod Readiness) remain planned per `docs/Smart Freight Logistics main plan.md:3`.
 
-**Entry point:** All clients hit the gateway; gateway routes `/api/auth/{**catch-all}` → IdentityService (`:5001`) and `/api/orders/{**catch-all}` → OrderService.API (`:5002`) — `src/Gateways/YarpGateway/appsettings.json:22`.
+**Entry point:** All clients hit the gateway; gateway routes `/api/auth/{**catch-all}` → IdentityService (`:5001`), `/api/orders/{id}/status PUT` → IntegrationService RpaBot via `rpa-status-route` (`YarpGateway/appsettings.json:31`), and `/api/orders/{**catch-all}` → OrderService.API (`:5002`) — `src/Gateways/YarpGateway/appsettings.json:22`.
 
 ---
 
@@ -30,14 +31,14 @@ Source: `gitnexus://repo/smart-freight-logistics/context`, `gitnexus://repo/smar
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Indexed at | `2026-09-05T14:35:19Z` | Runner `gitnexus@1.6.11`, `node v24.16.0 win32` |
-| Commit | `e9f79df` | `features/integration-tests-db-via-testcontainers` |
-| Files indexed | 82 | `status: matches all 82 covered file(s)` |
-| Symbols | 558 | `nodes: 558` — includes `Order`, `CargoDetails`, `StatusHistory`, `OrderStatusTransitions`, `OrdersController`, `JwtTokenGenerator`, `PasswordHasher`, `YarpGateway` + tests |
-| Relationships | 1103 | `edges: 1103` |
-| Processes (execution flows) | 23 | `flows: 23` — analyzer now finds `STEP_IN_PROCESS` chains for `Order` CRUD, `Auth` `register/login/me`, `YARP` routing |
-| Functional areas (Leiden clusters) | 21 | `clusters: 21` — `Community` nodes detected (Auth, Order, Gateway, Logging) |
-| Solution projects | 9 | `SmartFreightLogistics.slnx:1` — 7 src + 2 tests (`OrderService.Tests.Unit`, `Integration`) |
+| Indexed at | `2026-09-05T20:50:27Z` | Runner `gitnexus@1.6.11`, `node v24.16.0 win32` |
+| Commit | `0045fa3` | `Allow RpaBot to set order status to Customs via new route` |
+| Files indexed | 106 | `status: matches all 106 covered file(s)` |
+| Symbols | 694 | `nodes: 694` — includes `Order`, `CargoDetails`, `StatusHistory`, `OrderStatusTransitions`, `OrderCreatedDomainEvent`, `OrderCreatedIntegrationEvent`, `OrderCreatedConsumer`, `RpaClient`, `OrderStatusClient`, `IntegrationService` + tests |
+| Relationships | 1326 | `edges: 1326` |
+| Processes (execution flows) | 26 | `flows: 26` — Order CRUD, Auth, YARP, `OrderCreatedDomainEvent → IntegrationEvent → Publish → Consume → Rpa → Customs` |
+| Functional areas (Leiden clusters) | 26 | `clusters: 26` — `Community` nodes (Auth, Order, Gateway, Logging, EventBus, Integration) |
+| Solution projects | 12 | `SmartFreightLogistics.slnx:1` — 8 src (`+EventBus`, `+IntegrationService`) + 3 tests (`OrderService Unit/Integration`, `IntegrationService Integration`) + Gateway |
 
 > **Why 0 processes/clusters was not an error before:** The indexed code was minimal — `Program.cs` only wired middleware, `OrderService` were `Class1.cs:1` placeholders. After Stage 3 (`Order` aggregate, `OrdersController`, `Jwt`, `YARP` policies, `Testcontainers`), the analyzer correctly populates `23` processes and `21` clusters. No re-index needed until next stage.
 
@@ -81,21 +82,37 @@ Since `gitnexus://repo/smart-freight-logistics/clusters` is empty, areas are der
 - **Pipeline (current):** `AddSharedLogging()` → `AddOpenApi()` → `AddDbContext(UseNpgsql(...))` → `UseHttpsRedirection()` → `UseSharedLogging()` → `UseRouting()` → `MapOpenApi()` (dev only) — `Program.cs:6` — note `MapControllers()` is commented out `Program.cs:34`, no auth controllers yet.
 - **Planned:** JWT generation with Claims (roles/IDs) and policy enforcement — `docs/main plan.md:18`.
 
-### 3.4 Services.OrderService — Order Management (Clean Architecture Stub)
+### 3.4 Services.OrderService — Order Management (Clean Architecture, Event-Driven)
 - **Paths:**
-  - `src/Services/OrderService/OrderService.API/` (`OrderService.API.csproj:1`) — Web host, refs Logging + Application + Infrastructure — `OrderService.API.csproj:14`
-  - `src/Services/OrderService/OrderService.Application/` (`OrderService.Application.csproj:1`) — stub `Class1.cs:1`
-  - `src/Services/OrderService/OrderService.Domain/` (`OrderService.Domain.csproj:1`) — stub `Class1.cs:1`
-  - `src/Services/OrderService/OrderService.Infrastructure/` (`OrderService.Infrastructure.csproj:1`) — stub `Class1.cs:1`
-- **Entrypoint:** `src/Services/OrderService/OrderService.API/Program.cs:1` — `AddSharedLogging()` → `AddControllers()` → `AddOpenApi()` → `UseHttpsRedirection()` → `UseSharedLogging()` → `UseRouting()` → `MapControllers()` → `MapOpenApi()` — `Program.cs:3` — minimal scaffold.
-- **Planned domain (per `docs/main plan.md:31`):** `Order`, `CargoDetails`, `StatusHistory` entities; base CRUD; `xUnit + FluentAssertions + Testcontainers.PostgreSql` tests — Stage 3. Later: `MassTransit + RabbitMQ OrderCreatedEvent → IntegrationService/RPA Bridge` (Stage 4), Redis `TrackingService` cache-aside (Stage 5), `MediatR CQRS` refactor (Stage 6), HealthChecks + OpenTelemetry (Stage 7).
+  - `src/Services/OrderService/OrderService.API/` (`OrderService.API.csproj:1`) — Web host, refs Logging + EventBus + Application + Infrastructure — `OrderService.API.csproj:22`
+  - `src/Services/OrderService/OrderService.Application/` (`OrderService.Application.csproj:1`) — `IOrderService`, `OrderService` with `IPublishEndpoint`, `Mappings/OrderCreatedIntegrationMapper`
+  - `src/Services/OrderService/OrderService.Domain/` (`OrderService.Domain.csproj:1`) — `Order` aggregate with `DomainEvents`, `OrderStatusTransitions`, `OrderCreatedDomainEvent`
+  - `src/Services/OrderService/OrderService.Infrastructure/` (`OrderService.Infrastructure.csproj:1`) — `OrderDbContext` `sfl_order_db`, `OrderRepository ExecuteUpdate`, `OrderSeeder`
+- **Entrypoint:** `src/Services/OrderService/OrderService.API/Program.cs:1` — `AddSharedLogging()` → `AddOrderDbContext()` → `AddOrderAuth()` → `AddEventBus()` (MassTransit `RabbitMQ` `Retry 3×1s`) or `InMemory` when `Testing` → `AddControllers()` — `Program.cs:12`
+- **Domain Events (4.2):** `Order` `DomainEvents` `IDomainEvent` `OrderCreatedDomainEvent(Cargo)` `OrderStatusChangedDomainEvent` — `Order.cs:18` `DomainEvents` ignored by `OrderDbContext:40`
+- **Publishing (4.5):** `OrderService.cs:40` after `SaveChangesAsync` `OfType<OrderCreatedDomainEvent>().First() → ToIntegrationEvent() → IPublishEndpoint.Publish(OrderCreatedIntegrationEvent)` `ClearDomainEvents()` — flat `DTO` `OrderId/ClientId/CargoType/WeightKg/Origin/Destination/CreatedAt` via `BuildingBlocks.EventBus`
+- **Auth (4.9):** `OrdersController.cs:82` `PUT status` allows `RpaBot` only `Customs` (`IsRpaBot` check), otherwise `Manager` or owner — `OrderService.cs:77` `IsRpaBot`/`IsManager`
 
-### 3.5 Infrastructure — Docker Compose
+### 3.5 BuildingBlocks.EventBus — Integration Contracts & Transport
+- **Path:** `src/BuildingBlocks/EventBus/` (`BuildingBlocks.EventBus.csproj:1` `MassTransit 8.3.5/RabbitMQ 8.3.5`)
+- **Symbols:** `RabbitMqSettings` (`RabbitMqSettings.cs:9` `Host localhost:5672 User/Password required via user-secrets` `ValidateOnStart`), `ServiceCollectionExtensions.AddEventBus` (`Extensions/ServiceCollectionExtensions.cs:16` `Bind RabbitMq` `UseMessageRetry Interval(3,1s) ConfigureEndpoints`)
+- **Contracts:** `IntegrationEvents/OrderCreatedIntegrationEvent.cs:1` `sealed record OrderCreatedIntegrationEvent(Guid OrderId, ClientId, string CargoType, decimal WeightKg, string Origin, Destination, DateTime CreatedAt)` — stable cross-service DTO
+
+### 3.6 Services.IntegrationService — RPA Bridge (No DB, Stateless)
+- **Path:** `src/Services/IntegrationService/` (`IntegrationService.csproj:1` `Sdk.Web` `MassTransit` `Http.Polly 10.0.0` `JwtBearer 10.0.11`)
+- **Entrypoint:** `Program.cs:1` `AddSharedLogging()` → `AddEventBus(x=>AddConsumer<OrderCreatedConsumer>)` → `AddHttpClient<IRpaClient,RpaClient>` / `AddHttpClient<IOrderStatusClient,OrderStatusClient>` with `WaitAndRetry 3×2^retry` + `CircuitBreaker 5/30s` → `UseRouting/Authentication/Authorization MapControllers MapOpenApi` `:5003`
+- **Consumer (4.7):** `Consumers/OrderCreatedConsumer.cs:1` `IConsumer<OrderCreatedIntegrationEvent>` logs `OrderId` `SubmitCustomsAsync → MarkCustomsAsync` `MassTransit Retry`
+- **Clients (4.8):** `Clients/RpaClient.cs:1` `HttpClient PostAsJsonAsync api/customs/declarations` to `Rpa:BaseUrl localhost:5004` `Clients/OrderStatusClient.cs:1` `HttpClient Put api/orders/{id}/status {newStatus=Customs}` with `RpaBot JWT` `HS256` same `Secret/Issuer/Audience` (`JwtSettings`) `5m` expiry
+- **Auth (4.9):** `RpaBot` `2222...` can `Customs` via `YarpGateway rpa-status-route` (`appsettings.json:31` `PUT /api/orders/{id}/status` without `AuthorizationPolicy` → `OrderService` enforces) or direct `:5002`
+
+### 3.7 Infrastructure — Docker Compose (Stage 4)
 - **Path:** `docker/docker-compose.yml:1`, `docker/postgres/init-scripts/init.sql:1`, `docker/.env.example`
-- **Services (all on `logistics-network` bridge — `docker-compose.yml:53`):**
+- **Services (all on `logistics-network` bridge — `docker-compose.yml:76`):**
   - `logistics-db` — `postgres:16-alpine`, `logistics-postgres-db`, `5432:5432`, env `POSTGRES_USER/PASSWORD`, `POSTGRES_MULTIPLE_DATABASES="sfl_identity_db,sfl_order_db"`, volumes `postgres_data` + `./postgres/init-scripts:/docker-entrypoint-initdb.d` — `docker-compose.yml:5`
   - `pgadmin` — `dpage/pgadmin4`, `logistics-pgadmin`, `5050:80`, depends_on `logistics-db` — `docker-compose.yml:22`
   - `logistics-cache` — `redis:7-alpine`, `logistics-redis-cache`, `6379:6379`, `redis-server --requirepass ${REDIS_PASSWORD}`, volume `redis_data` — `docker-compose.yml:37`
+  - `logistics-rabbitmq` — `rabbitmq:3-management-alpine`, `logistics-rabbitmq`, `5672:5672 15672:15672`, env `RABBITMQ_USER/PASSWORD`, volume `rabbitmq_data`, healthcheck `rabbitmq-diagnostics` — `docker-compose.yml:49`
+  - `integration-service` — `mcr.microsoft.com/dotnet/aspnet:10.0`, `logistics-integration-service`, `5003:8080 7003:8081`, `depends_on rabbitmq healthy`, env `RabbitMq__Host logistics-rabbitmq` `JwtSettings__Secret` `Rpa__BaseUrl` — `docker-compose.yml:71`
 - **Init:** `init.sql:1` creates `sfl_identity_db` and `sfl_order_db` (runs once on first `docker-compose up`; reset via `down -v` per `docs/tips.md:63`).
 - **Operational docs:** `docs/tips.md:1` covers `up -d`, `down`, `logs -f`, `exec -it logistics-redis-cache redis-cli`, `.env` handling, volume persistence.
 
@@ -136,17 +153,27 @@ Since `gitnexus://repo/smart-freight-logistics/clusters` is empty, areas are der
 4. EF `dotnet ef migrations add` produced `20260830173900_InitialCreate.cs:14` `CreateTable Users { Id uuid PK, Email varchar(150) NN, PasswordHash text NN, FullName text NN, Role varchar(50) NN, CreatedAt timestamptz NN }` + `CreateIndex IX_Users_Email unique`
 5. Runtime `dotnet ef database update` (or Docker first-run `init.sql:1` `CREATE DATABASE sfl_identity_db`) materializes schema in `logistics-db:5432`.
 
-### Flow 4 — Order CRUD (Implemented — Stage 3)
+### Flow 4 — Order CRUD (Implemented — Stage 3, extended Stage 4)
 
-**Goal (per `docs/main plan.md:28`):** `ClientPolicy` user creates `Order` with `CargoDetails`, reads via ownership, updates `StatusHistory` via state machine.
+**Goal (per `docs/main plan.md:28`):** `ClientPolicy` user creates `Order` with `CargoDetails`, reads via ownership, updates `StatusHistory` via state machine (now with `RpaBot` `Customs`).
 
-*Implemented sequence (replaces `Class1.cs:1` stubs):*
+*Implemented sequence (replaces `Class1.cs:1` stubs, extended 4.5/4.9):*
 
 1. `Client → YarpGateway /api/orders POST` → `order-cluster :5002` (`YarpGateway/appsettings.json:30`, `YarpGateway/Program.cs:26` `MapReverseProxy`, `AuthExtension.cs:38` `ClientPolicy` requires `Client` role)
-2. `OrderService.API` `OrdersController.cs:36` `[Authorize(Policy="ClientPolicy")] POST` validates `CreateOrderRequest` (`DTOs/CreateOrderRequest.cs:5` `sealed record` `CargoType/WeightKg/Origin/Destination`), maps to `OrderService.Application` `IOrderService.CreateAsync` (`Services/OrderService.cs:11`) — checks `Origin!=Destination`, creates `CargoDetails` owned VO, calls `Order.Create(clientId,cargo)` (`Domain/Entities/Order.cs:20` validates `Weight>0/Origin/Destination`, adds `StatusHistory` `Created`)
-3. `OrderService.Application` persists via `IOrderRepository.AddAsync` + `SaveChanges` (`Infrastructure/Repositories/OrderRepository.cs:32`) → `OrderDbContext.cs:15` `OwnsOne(Cargo)`, `HasIndex(ClientId/Status)`, `DbSet<Order>` to `sfl_order_db` (`docker-compose.yml:11`, `init-scripts`), seeded in `IsDevelopment` via `OrderSeeder.cs:13` `3` dev orders for `dev.client 3333...` (`Program.cs:28` `if IsDevelopment SeedAsync`)
+2. `OrderService.API` `OrdersController.cs:36` `[Authorize(Policy="ClientPolicy")] POST` validates `CreateOrderRequest` (`DTOs/CreateOrderRequest.cs:5` `sealed record` `CargoType/WeightKg/Origin/Destination`), maps to `OrderService.Application` `IOrderService.CreateAsync` (`Services/OrderService.cs:11`) — checks `Origin!=Destination`, creates `CargoDetails` owned VO, calls `Order.Create(clientId,cargo)` (`Domain/Entities/Order.cs:20` validates `Weight>0/Origin/Destination`, adds `StatusHistory` `Created` + `OrderCreatedDomainEvent` `DomainEvents`)
+3. `OrderService.Application` persists via `IOrderRepository.AddAsync` + `SaveChanges` (`Infrastructure/Repositories/OrderRepository.cs:32`) → `OrderDbContext.cs:15` `OwnsOne(Cargo)`, `HasIndex(ClientId/Status)`, `DbSet<Order>` to `sfl_order_db` (`docker-compose.yml:11`, `init-scripts`), seeded in `IsDevelopment` via `OrderSeeder.cs:13` `3` dev orders for `dev.client 3333...` (`Program.cs:28` `if IsDevelopment SeedAsync`), then `OfType<OrderCreatedDomainEvent>().First().ToIntegrationEvent()` → `IPublishEndpoint.Publish(OrderCreatedIntegrationEvent)` (`OrderService.cs:40`, `Mappings/OrderCreatedIntegrationMapper.cs:1`) via `MassTransit RabbitMQ` (`BuildingBlocks.EventBus` `ServiceCollectionExtensions.cs:16` `UseMessageRetry 3×1s`) or `InMemory` when `Testing`
 4. `GET /api/orders/{id}` `OrdersController.cs:58` and `GET /api/orders` `OrdersController.cs:71` enforce ownership: `Client` sees only `WHERE ClientId==sub` (`OrderService.cs:48` `ListByClientAsync`), `LogisticsManager` sees all (`ListAllAsync`), `GET` returns `404` for foreign `Client` (hide existence)
-5. `PUT /api/orders/{id}/status` `OrdersController.cs:82` → `OrderService.cs:56` `UpdateStatusAsync` checks `IsManager` or owner, validates `OrderStatusTransitions.Ensure` (`OrderStatusTransitions.cs:10` `Created->{Confirmed,Cancelled}` etc.), then `TryUpdateStatusWithHistoryAsync` (`OrderRepository.cs:41` `ExecuteUpdate` `Status/UpdatedAt` + `StatusHistories.Add`) — `DomainException → 409`, `UnauthorizedAccessException → 403`. `Integration` tests via `Testcontainers.PostgreSql` `WebApplicationFactory` `CustomWebApplicationFactory.cs:13` + `JwtHelper.cs:1` `HS256` same `Secret/Isp/Aud` verify `201/200/404/403/409`.
+5. `PUT /api/orders/{id}/status` `OrdersController.cs:82` → `OrderService.cs:72` `UpdateStatusAsync` checks `IsRpaBot` (only `Customs` allowed) else `IsManager` or owner, validates `OrderStatusTransitions.Ensure` (`OrderStatusTransitions.cs:10` `Created->{Confirmed,Cancelled}` etc.), then `TryUpdateStatusWithHistoryAsync` (`OrderRepository.cs:41` `ExecuteUpdate` `Status/UpdatedAt` + `StatusHistories.Add`) — `DomainException → 409`, `UnauthorizedAccessException → 403`. `Integration` tests via `Testcontainers.PostgreSql` `WebApplicationFactory` `CustomWebApplicationFactory.cs:13` + `JwtHelper.cs:1` `HS256` same `Secret/Isp/Aud` verify `201/200/404/403/409`, plus `RpaBot` `Customs` via `Yarp rpa-status-route` (`YarpGateway/appsettings.json:31` `PUT /api/orders/{id}/status` without `AuthorizationPolicy` → `OrderService` enforces).
+
+### Flow 5 — Event-Driven RPA Bridge (Implemented — Stage 4)
+
+**Goal:** `OrderCreatedIntegrationEvent` → `RabbitMQ` → `IntegrationService` → `RPA` → `OrderService Customs` via `RpaBot` `JWT`.
+
+1. `OrderService` `CreateAsync` publishes `OrderCreatedIntegrationEvent(Guid OrderId, ClientId, CargoType, WeightKg, Origin, Destination, CreatedAt)` (`EventBus/IntegrationEvents/OrderCreatedIntegrationEvent.cs:1`) flat DTO to `RabbitMQ` `logistics-rabbitmq:5672` (`docker-compose.yml:49`, `RabbitMqSettings.cs:9` `Host localhost User/Password required` `ValidateOnStart`)
+2. `IntegrationService` `OrderCreatedConsumer.cs:1` `IConsumer<OrderCreatedIntegrationEvent>` `Consume` logs `OrderId`/`ClientId`, calls `IRpaClient.SubmitCustomsAsync(event)` (`Clients/RpaClient.cs:1` `HttpClient PostAsJsonAsync api/customs/declarations` to `Rpa:BaseUrl localhost:5004` with `WaitAndRetry 3×2^retry` + `CircuitBreaker 5/30s` via `Microsoft.Extensions.Http.Polly` `Program.cs:18`) — stub returns `true`, `4.8` real `POST`
+3. On `true`, `IOrderStatusClient.MarkCustomsAsync(event.OrderId)` (`Clients/OrderStatusClient.cs:1` `HttpClient Put api/orders/{id}/status {newStatus=Customs}` to `OrderService:BaseUrl localhost:5002` with `RpaBot JWT` `HS256` same `Secret/Issuer/Audience` `5m` expiry via `GenerateRpaBotToken()` + same `Polly` policies `Program.cs:27`)
+4. `OrderService` `UpdateStatusAsync` validates `IsRpaBot && Customs` → `OrderStatusTransitions.Ensure(InTransit→Customs)` → `ExecuteUpdate` → `200`, otherwise `403`. `MassTransit Retry` handles transient `HttpRequestException`.
+5. Tests: `OrderService.Tests.Unit` `Mock IPublishEndpoint Verify Publish<OrderCreatedIntegrationEvent> Once` (`OrderServiceApplicationTests.cs:60` `CreateAsync_ShouldPublishIntegrationEvent`), `IntegrationService.Tests.Integration` `MassTransit.TestFramework InMemoryTestHarness` `Publish OrderCreatedIntegrationEvent → RpaClient mock true → OrderStatusClient MarkCustoms Once` + `false → Never` + `Throws → Retry` (`OrderCreatedConsumerTests.cs:1` `3 tests`), plus `Testcontainers.RabbitMq 4.2.0` available.
 
 ---
 
@@ -158,19 +185,25 @@ Since `gitnexus://repo/smart-freight-logistics/clusters` is empty, areas are der
 SmartFreightLogistics.slnx
 ├── src/BuildingBlocks/Logging (BuildingBlocks.Logging.csproj)
 │   └── Serilog.AspNetCore 10.0.0, Serilog.Sinks.Console 6.1.1
+├── src/BuildingBlocks/EventBus (BuildingBlocks.EventBus.csproj) ──FrameworkRef AspNetCore.App
+│   └── MassTransit 8.3.5, MassTransit.RabbitMQ 8.3.5
 ├── src/Gateways/YarpGateway (YarpGateway.csproj) ──ProjectRef──► BuildingBlocks.Logging
 │   └── Yarp.ReverseProxy 2.3.0
 ├── src/Services/IdentityService (IdentityService.csproj) ──ProjectRef──► BuildingBlocks.Logging
 │   └── Microsoft.AspNetCore.Authentication.JwtBearer 10.0.11
 │   └── Microsoft.AspNetCore.OpenApi 10.0.11
 │   └── Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3
-│   └── Microsoft.EntityFrameworkCore.Design 10.0.11
-└── src/Services/OrderService/
-    ├── OrderService.Domain (no deps)
-    ├── OrderService.Application (no deps, stub)
-    ├── OrderService.Infrastructure (stub, will ref Domain)
-    └── OrderService.API ──ProjectRef──► BuildingBlocks.Logging, OrderService.Application, OrderService.Infrastructure
-        └── Microsoft.AspNetCore.OpenApi 10.0.11
+├── src/Services/OrderService/
+│   ├── OrderService.Domain ──Events IDomainEvent OrderCreatedDomainEvent
+│   ├── OrderService.Application ──ProjectRef──► EventBus, Domain + MassTransit IPublishEndpoint
+│   ├── OrderService.Infrastructure ──ProjectRef──► Domain (OrderDbContext sfl_order_db)
+│   └── OrderService.API ──ProjectRef──► Logging, EventBus, Application, Infrastructure
+│       └── JwtBearer 10.0.11 + MassTransit + RabbitMq
+└── src/Services/IntegrationService (IntegrationService.csproj) Sdk.Web No DB
+    ├── ProjectRef──► Logging, EventBus
+    └── MassTransit, JwtBearer 10.0.11, Http.Polly 10.0.0, OpenApi 10.0.11
+        └── Clients RpaClient/OrderStatusClient (HttpClient + Polly + RpaBot JWT)
+        └── Consumers OrderCreatedConsumer
 ```
 
 *Verified via `YarpGateway.csproj:14`, `IdentityService.csproj:21`, `OrderService.API.csproj:14`, `OrderService.Domain.csproj:1`, plus Cypher `IMPORTS` edges.*
@@ -179,11 +212,16 @@ SmartFreightLogistics.slnx
 
 | From | To | Via |
 |------|----|-----|
-| `YarpGateway` | `IdentityService:5001`, `OrderService.API:5002` | YARP `ReverseProxy.Clusters.Destinations.Address` (`YarpGateway/appsettings.json:41`) |
+| `YarpGateway` | `IdentityService:5001`, `OrderService.API:5002` | YARP `ReverseProxy.Clusters.Destinations.Address` (`YarpGateway/appsettings.json:41`) + `rpa-status-route PUT /api/orders/{id}/status` without `AuthorizationPolicy` → `OrderService` `RpaBot` check |
 | `IdentityService` | `logistics-db:5432/sfl_identity_db` | `Npgsql` + `IdentityDbContext` (`IdentityService/Program.cs:25`) |
-| `OrderService.Infrastructure` (future) | `logistics-db:5432/sfl_order_db` | EF Core (planned) |
+| `OrderService.API` | `logistics-rabbitmq:5672` | `MassTransit RabbitMQ` `IPublishEndpoint.Publish(OrderCreatedIntegrationEvent)` (`OrderService.cs:40`, `EventBus ServiceCollectionExtensions.cs:16`) |
+| `OrderService.Infrastructure` | `logistics-db:5432/sfl_order_db` | `Npgsql` + `OrderDbContext` `sfl_order_db` `Migrate/EnsureCreated` (`OrderService.API/Program.cs:28`) |
+| `IntegrationService` | `logistics-rabbitmq:5672` | `MassTransit IConsumer<OrderCreatedIntegrationEvent>` `OrderCreatedConsumer` (`Program.cs:11` `AddConsumer`) |
+| `IntegrationService` | `OrderService:5002` | `HttpClient Put api/orders/{id}/status Customs` with `RpaBot JWT` + `Polly Retry/CircuitBreaker` (`OrderStatusClient.cs:1`) |
+| `IntegrationService` | `mock-rpa:5004` | `HttpClient Post api/customs/declarations` with `Polly` (`RpaClient.cs:1`) |
 | `TrackingService` (future) | `logistics-cache:6379` | `StackExchange.Redis` Cache-Aside (`docs/main plan.md:48`) |
 | All services | BuildingBlocks.Logging | `SerilogExtensions.AddSharedLogging/UseSharedLogging` |
+| All services | BuildingBlocks.EventBus | `RabbitMqSettings` `ValidateOnStart` `MassTransit` |
 
 ---
 
@@ -205,37 +243,51 @@ graph TB
 
   subgraph Services [Services]
     IdentityService["IdentityService<br/>.NET 10 Web API<br/>EF Core + Npgsql 10.0.3<br/>User{Email,Role}<br/>PasswordHasher PBKDF2<br/>JwtTokenGenerator HS256<br/>AuthController register/login/me<br/>:5001"]
-    OrderAPI["OrderService.API<br/>OrdersController CRUD<br/>JwtBearer 10.0.11<br/>:5002"]
-    OrderApp["OrderService.Application<br/>IOrderService<br/>Create/Get/List/UpdateStatus<br/>OrderStatusTransitions"]
-    OrderDomain["OrderService.Domain<br/>Order/CargoDetails/StatusHistory<br/>State Machine"]
+    OrderAPI["OrderService.API<br/>OrdersController CRUD<br/>JwtBearer 10.0.11<br/>IPublishEndpoint<br/>:5002"]
+    OrderApp["OrderService.Application<br/>IOrderService<br/>Create/Get/List/UpdateStatus<br/>OrderStatusTransitions<br/>OrderCreatedIntegrationMapper"]
+    OrderDomain["OrderService.Domain<br/>Order/CargoDetails/StatusHistory<br/>State Machine<br/>OrderCreatedDomainEvent"]
     OrderInfra["OrderService.Infrastructure<br/>OrderDbContext sfl_order_db<br/>OrderSeeder IsDevelopment"]
+    IntegrationService["IntegrationService<br/>.NET 10 No DB<br/>MassTransit Consumer<br/>RpaClient + OrderStatusClient<br/>Polly Retry/CircuitBreaker<br/>RpaBot JWT<br/>:5003"]
+    EventBus["BuildingBlocks.EventBus<br/>RabbitMqSettings<br/>OrderCreatedIntegrationEvent<br/>MassTransit 8.3.5"]
   end
 
   subgraph Tests [Tests — MTP]
-    UnitTests["OrderService.Tests.Unit<br/>xUnit v3 MTP<br/>41 tests<br/>FluentAssertions/Moq"]
-    IntegrationTests["OrderService.Tests.Integration<br/>Testcontainers.PostgreSql<br/>10 tests<br/>WebApplicationFactory/JwtHelper"]
+    UnitTests["OrderService.Tests.Unit<br/>xUnit v3 MTP<br/>42 tests<br/>FluentAssertions/Moq<br/>Publish verify"]
+    IntegrationTests["OrderService.Tests.Integration<br/>Testcontainers.PostgreSql<br/>10 tests<br/>WebApplicationFactory/JwtHelper<br/>loopback InMemory"]
+    IntegrationServiceTests["IntegrationService.Tests.Integration<br/>MassTransit.TestFramework InMemoryTestHarness<br/>3 tests<br/>Rpa/OrderStatus mocks"]
   end
 
   subgraph Infra [Infrastructure — docker-compose.yml]
     Postgres["PostgreSQL 16-alpine<br/>logistics-postgres-db<br/>sfl_identity_db<br/>sfl_order_db<br/>:5432"]
     Redis["Redis 7-alpine<br/>logistics-redis-cache<br/>:6379<br/>requirepass"]
+    RabbitMQ["RabbitMQ 3-management-alpine<br/>logistics-rabbitmq<br/>5672/15672<br/>rabbitmq_data"]
     PgAdmin["pgAdmin4<br/>logistics-pgadmin<br/>:5050"]
   end
 
   Client -->|"/api/auth/{**catch-all}"| YarpGateway
   Client -->|"/api/orders/{**catch-all}"| YarpGateway
+  Client -->|"/api/orders/{id}/status PUT<br/>rpa-status-route"| YarpGateway
 
   YarpGateway -->|"identity-cluster → :5001"| IdentityService
-  YarpGateway -->|"order-cluster → :5002"| OrderAPI
+  YarpGateway -->|"order-cluster → :5002<br/>ClientPolicy + RpaBot via OrderService"| OrderAPI
+  YarpGateway -->|"rpa-status-route → :5002"| OrderAPI
 
   YarpGateway -. "AddSharedLogging()<br/>UseSharedLogging()<br/>CorrelationIdMiddleware" .-> Logging
   IdentityService -. "AddSharedLogging()" .-> Logging
   OrderAPI -. "AddSharedLogging()" .-> Logging
+  IntegrationService -. "AddSharedLogging()" .-> Logging
 
   OrderAPI --> OrderApp --> OrderDomain
   OrderApp --> OrderInfra
+  OrderApp -- "Publish OrderCreatedIntegrationEvent<br/>IPublishEndpoint" --> EventBus
+  EventBus -- "RabbitMQ logistics-rabbitmq:5672" --> RabbitMQ
+  RabbitMQ -- "Consume OrderCreatedIntegrationEvent" --> IntegrationService
+  IntegrationService -- "POST api/customs/declarations<br/>Polly" --> RabbitMQ
+  IntegrationService -- "PUT api/orders/{id}/status Customs<br/>RpaBot JWT + Polly" --> OrderAPI
+
   OrderAPI -. "Tests MTP<br/>dotnet run"| UnitTests
   OrderAPI -. "Testcontainers<br/>WebApplicationFactory"| IntegrationTests
+  IntegrationService -. "InMemoryTestHarness"| IntegrationServiceTests
 
   IdentityService -->|"EF Core Npgsql<br/>NpgsqlConnectionStringBuilder<br/>DatabaseSettings:Password<br/>IX_Users_Email unique"| Postgres
   OrderInfra -->|"EF Core Npgsql<br/>Migrate/EnsureCreated<br/>OrderSeeder IsDevelopment"| Postgres
@@ -270,8 +322,8 @@ graph TB
 |-------|-------|------|--------|
 | 1 | Foundation | .NET 10, Docker Compose, YARP, Serilog | ✅ Done — solution, `docker-compose.yml:1`, `YarpGateway/Program.cs:1`, `BuildingBlocks.Logging` |
 | 2 | Identity & Auth | Web API, JwtBearer, EF Core, JWT Policies | ✅ Done — `User.cs:1`, `IdentityDbContext.cs:1`, `AuthController.cs:1` `register/login/me` `201/200/401`, `PasswordHasher` PBKDF2, `JwtTokenGenerator` HS256, `YarpGateway` `Client/LogisticsManager/RpaBot` policies `5000`, `OrderService` `AddJwtAuthentication` `5002` |
-| 3 | OrderService Core | EF Core (PostgreSQL), xUnit v3, FluentAssertions, Testcontainers, MTP | ✅ Done — `Order.cs:1` `CargoDetails/StatusHistory` + `OrderStatusTransitions` state machine, `OrderDbContext` `sfl_order_db` + `OrderSeeder` `IsDevelopment` `3` orders, `OrdersController` CRUD `201/200/404/403/409`, `41` unit + `10` integration `Testcontainers` `MTP`, `user-secrets` dev `JWT` |
-| 4 | Event-Driven & RPA | MassTransit, RabbitMQ, `OrderCreatedEvent`, `RPA_Bot_Policy` | ⏳ Planned — `docs/main plan.md:38` |
+| 3 | OrderService Core | EF Core (PostgreSQL), xUnit v3, FluentAssertions, Testcontainers, MTP | ✅ Done — `Order.cs:1` `CargoDetails/StatusHistory` + `OrderStatusTransitions` state machine, `OrderDbContext` `sfl_order_db` + `OrderSeeder` `IsDevelopment` `3` orders, `OrdersController` CRUD `201/200/404/403/409`, `42` unit + `10` integration `Testcontainers` `MTP` (now `InMemory` for RabbitMq in tests), `user-secrets` dev `JWT` |
+| 4 | Event-Driven & RPA | MassTransit 8.3.5, RabbitMQ 3-management-alpine, `OrderCreatedEvent`, `RPA_Bot_Policy`, `IntegrationService` | ✅ Done — `OrderCreatedDomainEvent` `OrderCreatedIntegrationEvent` flat DTO `ToIntegrationEvent` mapper, `BuildingBlocks.EventBus` `RabbitMqSettings` `ValidateOnStart` `UseMessageRetry 3×1s`, `OrderService` `IPublishEndpoint` `CreateAsync` publish + `InMemory` when `Testing`, `IntegrationService` `No DB` `OrderCreatedConsumer` → `RpaClient` `POST mock-rpa:5004` + `OrderStatusClient` `PUT Customs` with `RpaBot JWT` `Polly 3×2^retry` `CircuitBreaker 5/30s` `:5003`, `Yarp rpa-status-route` `PUT /api/orders/{id}/status`, `42` unit + `10` Order + `3` IntegrationService `InMemoryTestHarness` `55` total |
 | 5 | Tracking & Caching | Redis, Cache-Aside, `TrackingService` real-time coordinates | ⏳ Planned — `docs/main plan.md:48`; infra `logistics-cache:6379` already in `docker-compose.yml:37` |
 | 6 | CQRS Evolution | MediatR, Commands/Queries, FluentValidation, Redis/Dapper read models | ⏳ Planned — refactor of Order/Tracking services (`docs/main plan.md:56`) |
 | 7 | Prod Readiness | OpenTelemetry, HealthChecks, GitHub Actions CI | ⏳ Planned — `docs/main plan.md:65` |
@@ -280,13 +332,13 @@ graph TB
 
 ## 8. Known Gaps & Next Steps
 
-1. **Graph refreshed** — re-indexed `2026-09-05` `558 nodes 1103 edges 21 clusters 23 flows` (was `0` at scaffold). No re-index needed until Stage 4; `analyze --pdg` can populate `explain` taint flows if needed.
-2. **Controllers implemented** — `IdentityService/Controllers/AuthController.cs:1` `register/login/me` + `OrderService.API/Controllers/OrdersController.cs:1` `POST/GET/PUT` with `Authorize` `ClientPolicy` (`Program.cs:28` `UseAuthentication/UseAuthorization`, `AddJwtAuthentication` `ValidateIssuer/Audience/Lifetime/IssuerSigningKey`).
-3. **JWT wiring done** — `JwtBearer 10.0.11` `AddAuthentication().AddJwtBearer()` in `IdentityService/Services/ServiceCollectionExtensions.cs:34`, `YarpGateway/Extensions/AuthExtension.cs:19`, `OrderService.API/Extensions/AuthExtensions.cs:17` with `Client/LogisticsManager/RpaBot` policies enforced at `5000`/`5001`/`5002`.
-4. **OrderService implemented** — Clean Architecture `Order/CargoDetails/StatusHistory` `OrderStatusTransitions` state machine, `OrderDbContext` `sfl_order_db` `Migrate` + `OrderSeeder` `IsDevelopment`, `41` unit (`xUnit v3` `MTP`) + `10` integration (`Testcontainers.PostgreSql` `WebApplicationFactory` `JwtHelper`) `51` total.
-5. **Secrets management** — `DatabaseSettings:Password` via `user-secrets` (`SecretPassword123!`) + `JwtSettings:Secret` via `user-secrets` `dev-only...` (dev) and `docker/.env JWT_SECRET Pcvgm2...` (prod), `appsettings.json` placeholder `YOUR_SECRET_JWT_KEY` fail-fast if `<32`; `appsettings.Development.json` now empty (no secret in repo).
-6. **Health/Observability** — Serilog correlation done, HealthChecks and OpenTelemetry (Stage 7) not yet present.
+1. **Graph refreshed** — re-indexed `2026-09-05T20:50:27Z` `694 nodes 1326 edges 26 clusters 26 flows` (was `558/1103/21/23` at Stage 3). `IntegrationService` `OrderCreatedConsumer` + `EventBus` now indexed. No re-index needed until Stage 5; `analyze --pdg` can populate `explain` taint flows if needed.
+2. **Controllers implemented** — `IdentityService/Controllers/AuthController.cs:1` `register/login/me` + `OrderService.API/Controllers/OrdersController.cs:1` `POST/GET/PUT` with `Authorize` `ClientPolicy` + `RpaBot` `Customs` (`OrderService.cs:72` `IsRpaBot` check, `YarpGateway rpa-status-route` `PUT /api/orders/{id}/status` without `AuthorizationPolicy` → `OrderService` enforces).
+3. **JWT wiring done** — `JwtBearer 10.0.11` `AddAuthentication().AddJwtBearer()` in `IdentityService/Services/ServiceCollectionExtensions.cs:34`, `YarpGateway/Extensions/AuthExtension.cs:19`, `OrderService.API/Extensions/AuthExtensions.cs:17` with `Client/LogisticsManager/RpaBot` policies enforced at `5000`/`5001`/`5002` + `IntegrationService` `OrderStatusClient` generates `RpaBot JWT` via `JwtSettings`.
+4. **OrderService + EventBus implemented** — Clean Architecture `Order/CargoDetails/StatusHistory` `OrderStatusTransitions` + `DomainEvents` `OrderCreatedIntegrationEvent` flat DTO, `BuildingBlocks.EventBus` `RabbitMqSettings` `ValidateOnStart` `UseMessageRetry`, `OrderService` `CreateAsync` `IPublishEndpoint` publish, `42` unit (`xUnit v3` `MTP` `Publish verify`) + `10` integration (`Testcontainers.PostgreSql` `WebApplicationFactory` `InMemory` when `Testing`) `52` + `IntegrationService` `3` `InMemoryTestHarness` `55` total.
+5. **Secrets management** — `DatabaseSettings:Password` via `user-secrets` (`SecretPassword123!`) + `JwtSettings:Secret` via `user-secrets` `dev-only...` (dev) and `docker/.env JWT_SECRET Pcvgm2...` (prod) + `RabbitMq:User/Password` via `user-secrets` `sfl_rabbit/RabbitPassword123!` (dev) and `docker/.env RABBITMQ_*` (prod) + `appsettings.json` `YOUR_SECRET_JWT_KEY` / `YOUR_SECRET_PASSWORD` fail-fast; `appsettings.Development.json` empty (no secret in repo); tests erasure via `Testcontainers` ephemeral DB + `InMemory` (no `docker/.env` file parsing, no hardcoded dev secrets in `tests/`).
+6. **Health/Observability** — Serilog correlation done, `IntegrationService /health` `Healthy`, HealthChecks and OpenTelemetry (Stage 7) not yet present.
 
 ---
 
-*Generated: 2026-09-05. Index: `smart-freight-logistics@e9f79df` `558 nodes 1103 edges 21 clusters 23 flows`. To refresh after code changes: `node .gitnexus/run.cjs analyze --index-only` (auto-selects runner, no global install needed).*
+*Generated: 2026-09-05T20:50:27Z. Index: `smart-freight-logistics@0045fa3` `694 nodes 1326 edges 26 clusters 26 flows`. To refresh after code changes: `node .gitnexus/run.cjs analyze --index-only` (auto-selects runner, no global install needed).*

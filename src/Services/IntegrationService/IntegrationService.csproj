@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>e2f3a4b5-6789-0123-4567-890abcdef1234</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MassTransit" Version="8.3.5" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\Logging\BuildingBlocks.Logging.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\EventBus\BuildingBlocks.EventBus.csproj" />
+  </ItemGroup>
+
+</Project>

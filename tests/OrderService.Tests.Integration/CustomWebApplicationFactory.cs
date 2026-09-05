@@ -10,11 +10,10 @@ namespace OrderService.Tests.Integration;
 
 public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    // Ephemeral, isolated Testcontainers DB — no sync with docker/.env or local dev passwords
     private readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder()
         .WithImage("postgres:16-alpine")
         .WithDatabase("sfl_order_db_test")
-        .WithUsername("sfl_admin_test")
-        .WithPassword("SecretPassword123!")
         .WithCleanUp(true)
         .Build();
 
@@ -33,7 +32,9 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        // Also set env var as fallback (host builder reads env vars after appsettings)
+        builder.UseEnvironment("Testing");
+
+        // Set env vars early — Program.cs AddOrderAuth reads builder.Configuration before ConfigureAppConfiguration InMemory is applied in some factory versions
         Environment.SetEnvironmentVariable("JwtSettings__Secret", JwtHelper.Secret);
         Environment.SetEnvironmentVariable("JwtSettings__Issuer", JwtHelper.Issuer);
         Environment.SetEnvironmentVariable("JwtSettings__Audience", JwtHelper.Audience);
@@ -43,13 +44,14 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             var dict = new Dictionary<string, string?>
             {
+                // Isolated DB connection from Testcontainers — password already in connection string
                 ["ConnectionStrings:OrderDb"] = _dbContainer.GetConnectionString(),
-                // Password already in connection string; leave empty to avoid override
                 ["DatabaseSettings:Password"] = "",
                 ["JwtSettings:Secret"] = JwtHelper.Secret,
                 ["JwtSettings:Issuer"] = JwtHelper.Issuer,
                 ["JwtSettings:Audience"] = JwtHelper.Audience,
                 ["JwtSettings:ExpiryInMinutes"] = "60"
+                // No RabbitMq section — Program.cs uses InMemory when Environment=Testing (fully isolated, no broker)
             };
             config.AddInMemoryCollection(dict);
         });
@@ -71,7 +73,6 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
     {
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-        // Use EnsureCreated for Testcontainers (faster & avoids migration assembly lookup timing issues)
         await db.Database.EnsureDeletedAsync();
         await db.Database.EnsureCreatedAsync();
     }
