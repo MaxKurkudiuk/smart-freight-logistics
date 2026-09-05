@@ -38,6 +38,8 @@ public class OrderDbContext(DbContextOptions<OrderDbContext> options) : DbContex
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.Navigation(x => x.History).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            e.Ignore(x => x.DomainEvents); // 4.2 in-memory domain events, not persisted
         });
 
         b.Entity<StatusHistory>(e =>
