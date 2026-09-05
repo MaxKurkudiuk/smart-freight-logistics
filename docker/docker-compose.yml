@@ -46,9 +46,32 @@ services:
       - logistics-network
     restart: always
 
+  # --- MESSAGE BROKER: RabbitMQ ---
+  logistics-rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: logistics-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - logistics-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
 volumes:
   postgres_data:
   redis_data:
+  rabbitmq_data:
 
 networks:
   logistics-network:

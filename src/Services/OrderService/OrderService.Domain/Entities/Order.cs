@@ -1,4 +1,5 @@
 using OrderService.Domain.Enums;
+using OrderService.Domain.Events;
 
 namespace OrderService.Domain.Entities;
 
@@ -12,6 +13,11 @@ public sealed class Order
     public IReadOnlyCollection<StatusHistory> History => _history.AsReadOnly();
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    // Domain events — in-memory only, ignored by EF (see OrderDbContext.Ignore)
+    private readonly List<IDomainEvent> _domainEvents = [];
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void ClearDomainEvents() => _domainEvents.Clear();
 
     private Order() { } // EF — _history backing field configured in OrderDbContext via UsePropertyAccessMode(Field)
 
@@ -53,6 +59,8 @@ public sealed class Order
             Notes = "Order created"
         });
 
+        order._domainEvents.Add(new OrderCreatedDomainEvent(order.Id, clientId, cargo, now));
+
         return order;
     }
 
@@ -77,5 +85,7 @@ public sealed class Order
             ChangedBy = actorId,
             Notes = notes
         });
+
+        _domainEvents.Add(new OrderStatusChangedDomainEvent(Id, from, newStatus, actorId, UpdatedAt, notes));
     }
 }
