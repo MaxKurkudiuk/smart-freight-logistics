@@ -1,6 +1,6 @@
 # Smart Freight Logistics — Architecture Documentation
 
-> Generated from GitNexus knowledge graph (`smart-freight-logistics`, commit `0045fa3`, indexed `2026-09-05T20:50:27Z`) + manual source verification. The graph now reports `26` execution flows and `26` functional areas after Stage 4 (Event-Driven: MassTransit/RabbitMQ, IntegrationService, RpaBot). This document supplements the graph with deterministic code reads, each cited as `file:line`.
+> Generated from GitNexus knowledge graph (`smart-freight-logistics`, commit `0045fa3`, indexed `2026-09-05T20:53:00Z`) + manual source verification. The graph now reports `26` execution flows and `26` functional areas after Stage 4 (Event-Driven: MassTransit/RabbitMQ, IntegrationService, RpaBot). This document supplements the graph with deterministic code reads, each cited as `file:line`.
 
 ---
 
@@ -31,11 +31,11 @@ Source: `gitnexus://repo/smart-freight-logistics/context`, `gitnexus://repo/smar
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Indexed at | `2026-09-05T20:50:27Z` | Runner `gitnexus@1.6.11`, `node v24.16.0 win32` |
+| Indexed at | `2026-09-05T20:53:00Z` | Runner `gitnexus@1.6.11`, `node v24.16.0 win32` |
 | Commit | `0045fa3` | `Allow RpaBot to set order status to Customs via new route` |
-| Files indexed | 106 | `status: matches all 106 covered file(s)` |
-| Symbols | 694 | `nodes: 694` — includes `Order`, `CargoDetails`, `StatusHistory`, `OrderStatusTransitions`, `OrderCreatedDomainEvent`, `OrderCreatedIntegrationEvent`, `OrderCreatedConsumer`, `RpaClient`, `OrderStatusClient`, `IntegrationService` + tests |
-| Relationships | 1326 | `edges: 1326` |
+| Files indexed | 107 | `status: matches all 107 covered file(s)` |
+| Symbols | 699 | `nodes: 699` — includes `Order`, `CargoDetails`, `StatusHistory`, `OrderStatusTransitions`, `OrderCreatedDomainEvent`, `OrderCreatedIntegrationEvent`, `OrderCreatedConsumer`, `RpaClient`, `OrderStatusClient`, `IntegrationService` + tests + `README` |
+| Relationships | 1331 | `edges: 1331` |
 | Processes (execution flows) | 26 | `flows: 26` — Order CRUD, Auth, YARP, `OrderCreatedDomainEvent → IntegrationEvent → Publish → Consume → Rpa → Customs` |
 | Functional areas (Leiden clusters) | 26 | `clusters: 26` — `Community` nodes (Auth, Order, Gateway, Logging, EventBus, Integration) |
 | Solution projects | 12 | `SmartFreightLogistics.slnx:1` — 8 src (`+EventBus`, `+IntegrationService`) + 3 tests (`OrderService Unit/Integration`, `IntegrationService Integration`) + Gateway |
@@ -332,7 +332,7 @@ graph TB
 
 ## 8. Known Gaps & Next Steps
 
-1. **Graph refreshed** — re-indexed `2026-09-05T20:50:27Z` `694 nodes 1326 edges 26 clusters 26 flows` (was `558/1103/21/23` at Stage 3). `IntegrationService` `OrderCreatedConsumer` + `EventBus` now indexed. No re-index needed until Stage 5; `analyze --pdg` can populate `explain` taint flows if needed.
+1. **Graph refreshed** — re-indexed `2026-09-05T20:53:00Z` `699 nodes 1331 edges 26 clusters 26 flows` (was `694/1326` at `20:50` after Stage 4, `558/1103` at Stage 3). `README` + `IntegrationService` now indexed. No re-index needed until Stage 5; `analyze --pdg` can populate `explain` taint flows if needed.
 2. **Controllers implemented** — `IdentityService/Controllers/AuthController.cs:1` `register/login/me` + `OrderService.API/Controllers/OrdersController.cs:1` `POST/GET/PUT` with `Authorize` `ClientPolicy` + `RpaBot` `Customs` (`OrderService.cs:72` `IsRpaBot` check, `YarpGateway rpa-status-route` `PUT /api/orders/{id}/status` without `AuthorizationPolicy` → `OrderService` enforces).
 3. **JWT wiring done** — `JwtBearer 10.0.11` `AddAuthentication().AddJwtBearer()` in `IdentityService/Services/ServiceCollectionExtensions.cs:34`, `YarpGateway/Extensions/AuthExtension.cs:19`, `OrderService.API/Extensions/AuthExtensions.cs:17` with `Client/LogisticsManager/RpaBot` policies enforced at `5000`/`5001`/`5002` + `IntegrationService` `OrderStatusClient` generates `RpaBot JWT` via `JwtSettings`.
 4. **OrderService + EventBus implemented** — Clean Architecture `Order/CargoDetails/StatusHistory` `OrderStatusTransitions` + `DomainEvents` `OrderCreatedIntegrationEvent` flat DTO, `BuildingBlocks.EventBus` `RabbitMqSettings` `ValidateOnStart` `UseMessageRetry`, `OrderService` `CreateAsync` `IPublishEndpoint` publish, `42` unit (`xUnit v3` `MTP` `Publish verify`) + `10` integration (`Testcontainers.PostgreSql` `WebApplicationFactory` `InMemory` when `Testing`) `52` + `IntegrationService` `3` `InMemoryTestHarness` `55` total.
@@ -341,4 +341,4 @@ graph TB
 
 ---
 
-*Generated: 2026-09-05T20:50:27Z. Index: `smart-freight-logistics@0045fa3` `694 nodes 1326 edges 26 clusters 26 flows`. To refresh after code changes: `node .gitnexus/run.cjs analyze --index-only` (auto-selects runner, no global install needed).*
+*Generated: 2026-09-05T20:53:00Z. Index: `smart-freight-logistics@0045fa3` `699 nodes 1331 edges 26 clusters 26 flows`. To refresh after code changes: `node .gitnexus/run.cjs analyze --index-only` (auto-selects runner, no global install needed).*
