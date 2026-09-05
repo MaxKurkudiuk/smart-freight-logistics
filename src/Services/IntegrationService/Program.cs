@@ -1,14 +1,18 @@
 using BuildingBlocks.EventBus.Extensions;
 using BuildingBlocks.Logging;
+using IntegrationService.Clients;
+using IntegrationService.Consumers;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddSharedLogging();
 
-// 4.6 No DB — stateless HttpClient bridge
-builder.AddEventBus();
+// 4.6-4.7 No DB — stateless bridge, consumer registered (MassTransit Retry 3×1s via EventBus)
+builder.AddEventBus(x => x.AddConsumer<OrderCreatedConsumer>());
 
-// HttpClient placeholders — real RpaClient / OrderStatusClient in 4.8
+// 4.7 stubs — 4.8 will replace with AddHttpClient<RpaClient> + Polly
+builder.Services.AddScoped<IRpaClient, RpaClient>();
+builder.Services.AddScoped<IOrderStatusClient, OrderStatusClient>();
 builder.Services.AddHttpClient("rpa");
 builder.Services.AddHttpClient("order-status");
 
