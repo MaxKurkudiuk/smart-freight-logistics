@@ -1,13 +1,18 @@
+using BuildingBlocks.EventBus.IntegrationEvents;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using OrderService.Application.DTOs;
 using OrderService.Application.Interfaces;
+using OrderService.Application.Mappings;
 using OrderService.Domain.Entities;
+using OrderService.Domain.Events;
 
 namespace OrderService.Application.Services;
 
-public sealed class OrderService(IOrderRepository repo) : IOrderService
+public sealed class OrderService(IOrderRepository repo, IPublishEndpoint publishEndpoint) : IOrderService
 {
     private readonly IOrderRepository _repo = repo;
+    private readonly IPublishEndpoint _publishEndpoint = publishEndpoint;
 
     public async Task<OrderResponse> CreateAsync(Guid clientId, CreateOrderRequest request, CancellationToken ct = default)
     {
@@ -30,6 +35,16 @@ public sealed class OrderService(IOrderRepository repo) : IOrderService
         var order = Order.Create(clientId, cargo);
         await _repo.AddAsync(order, ct);
         await _repo.SaveChangesAsync(ct);
+
+        // 4.5 publish Domain → Integration (flat DTO, no EF owned VO)
+        var domainEvent = order.DomainEvents.OfType<OrderCreatedDomainEvent>().FirstOrDefault();
+        if (domainEvent is not null)
+        {
+            var integration = domainEvent.ToIntegrationEvent();
+            await _publishEndpoint.Publish(integration, ct);
+            order.ClearDomainEvents();
+        }
+
         return Map(order);
     }
 

@@ -7,6 +7,7 @@
     <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);xUnit1051;NU1903;MSB3277</NoWarn>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <UserSecretsId>63f25b54-7ee3-4abb-b0be-b72e4d6246cd</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,4 +1,6 @@
+using BuildingBlocks.EventBus.Extensions;
 using BuildingBlocks.Logging;
+using MassTransit;
 using OrderService.API.Extensions;
 using OrderService.Application.Interfaces;
 using OrderService.Application.Services;
@@ -10,6 +12,15 @@ builder.AddSharedLogging();
 
 builder.AddOrderDbContext();
 builder.AddOrderAuth();
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    // Fully isolated, no broker — uses standard MassTransit InMemory, no docker/.env file parsing
+    builder.Services.AddMassTransit(x => x.UsingInMemory((ctx, cfg) => cfg.ConfigureEndpoints(ctx)));
+}
+else
+{
+    builder.AddEventBus();
+}
 
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderService, OrderService.Application.Services.OrderService>();
