@@ -68,6 +68,36 @@ services:
       retries: 5
       start_period: 15s
 
+  # --- INTEGRATION: IntegrationService (RPA Bridge, No DB) ---
+  integration-service:
+    image: mcr.microsoft.com/dotnet/aspnet:10.0
+    container_name: logistics-integration-service
+    depends_on:
+      logistics-rabbitmq:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      RabbitMq__Host: logistics-rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__VHost: /
+      RabbitMq__User: ${RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD}
+      JwtSettings__Secret: ${JWT_SECRET}
+      JwtSettings__Issuer: SmartFreightLogistics.Identity
+      JwtSettings__Audience: SmartFreightLogistics.Gateways
+      Rpa__BaseUrl: http://mock-rpa:5004
+      OrderService__BaseUrl: http://logistics-order-service:5002
+    ports:
+      - "5003:8080"
+      - "7003:8081"
+    networks:
+      - logistics-network
+    restart: always
+    # build:
+    #   context: ..
+    #   dockerfile: src/Services/IntegrationService/Dockerfile
+
 volumes:
   postgres_data:
   redis_data:
