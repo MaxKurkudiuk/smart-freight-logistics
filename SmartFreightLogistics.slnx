@@ -9,6 +9,7 @@
   </Folder>
   <Folder Name="/src/Services/">
     <Project Path="src/Services/IdentityService/IdentityService.csproj" />
+    <Project Path="src/Services/IntegrationService/IntegrationService.csproj" />
   </Folder>
   <Folder Name="/src/Services/OrderService/">
     <Project Path="src/Services/OrderService/OrderService.API/OrderService.API.csproj" />
