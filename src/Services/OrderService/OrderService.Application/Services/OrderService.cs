@@ -5,6 +5,7 @@ using OrderService.Application.DTOs;
 using OrderService.Application.Interfaces;
 using OrderService.Application.Mappings;
 using OrderService.Domain.Entities;
+using OrderService.Domain.Enums;
 using OrderService.Domain.Events;
 
 namespace OrderService.Application.Services;
@@ -74,9 +75,17 @@ public sealed class OrderService(IOrderRepository repo, IPublishEndpoint publish
         var order = await _repo.GetByIdAsync(orderId, ct)
             ?? throw new KeyNotFoundException("Order not found.");
 
-        // Only owner or manager can mutate — prevents Client A from cancelling Client B order
-        if (!IsManager(actorRole) && order.ClientId != actorId)
+        // 4.9 RpaBot can only set Customs on any order (IntegrationService bridge), bypasses owner check
+        if (IsRpaBot(actorRole))
+        {
+            if (request.NewStatus != OrderStatus.Customs)
+                throw new UnauthorizedAccessException("RpaBot can only set Customs.");
+        }
+        else if (!IsManager(actorRole) && order.ClientId != actorId)
+        {
+            // Only owner or manager can mutate — prevents Client A from cancelling Client B order
             throw new UnauthorizedAccessException("Not owner.");
+        }
 
         // Validate transition via domain (throws DomainException -> 409)
         OrderStatusTransitions.Ensure(order.Status, request.NewStatus);
@@ -115,6 +124,9 @@ public sealed class OrderService(IOrderRepository repo, IPublishEndpoint publish
 
     private static bool IsManager(string role)
         => role.Equals("LogisticsManager", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsRpaBot(string role)
+        => role.Equals("RpaBot", StringComparison.OrdinalIgnoreCase);
 
     private static OrderResponse Map(Order o) => new()
     {
