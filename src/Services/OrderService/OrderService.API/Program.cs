@@ -22,6 +22,12 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+// Seed dev orders only in Development (idempotent, 3 orders for dev.client@example.com 3333...)
+if (app.Environment.IsDevelopment())
+{
+    await OrderService.Infrastructure.Data.OrderSeeder.SeedAsync(app.Services);
+}
+
 app.UseSharedLogging();
 
 app.UseRouting();
