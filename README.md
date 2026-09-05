@@ -22,7 +22,7 @@ Client → YARP Gateway :5000 (Client/LogisticsManager/RpaBot policies)
         Integration: IntegrationService :5003 (No DB, OrderCreatedConsumer → RpaClient POST + OrderStatusClient PUT Customs via RpaBot JWT + Polly)
 ```
 
-Full diagram + flows: [`ARCHITECTURE.md`](./ARCHITECTURE.md). Knowledge graph: `694 nodes 1326 edges 26 clusters 26 flows` (`node .gitnexus/run.cjs analyze --index-only` `2026-09-05T20:50:27Z`).
+Full diagram + flows: [`ARCHITECTURE.md`](./ARCHITECTURE.md). Knowledge graph: `699 nodes 1331 edges 26 clusters 26 flows` (`node .gitnexus/run.cjs analyze --index-only` `2026-09-05T20:53:00Z`).
 
 ---
 
@@ -202,7 +202,7 @@ docker/
   .env / .env.example             POSTGRES_PASSWORD, JWT_SECRET, REDIS_PASSWORD, RABBITMQ_USER, RABBITMQ_PASSWORD
 docs/
   Smart Freight Logistics main plan.md  Roadmap 1-7 (Stages 1-4 done, 5-7 planned, 4.1-4.10 detailed)
-ARCHITECTURE.md                   Codebase stats 694 nodes 1326 edges 26 clusters 26 flows, functional areas, flows (Gateway/Correlation/Identity/Order CRUD/Event-Driven RPA), mermaid, roadmap
+ARCHITECTURE.md                   Codebase stats 699 nodes 1331 edges 26 clusters 26 flows, functional areas, flows (Gateway/Correlation/Identity/Order CRUD/Event-Driven RPA), mermaid, roadmap
 ```
 
 ---
@@ -233,4 +233,4 @@ ARCHITECTURE.md                   Codebase stats 694 nodes 1326 edges 26 cluster
 
 ---
 
-*Generated for implemented Stages 1-4. To refresh graph: `node .gitnexus/run.cjs analyze --index-only` (now `694 nodes 1326 edges 26 clusters 26 flows` @ `0045fa3` `2026-09-05T20:50:27Z`).*
+*Generated for implemented Stages 1-4. To refresh graph: `node .gitnexus/run.cjs analyze --index-only` (now `699 nodes 1331 edges 26 clusters 26 flows` `2026-09-05T20:53:00Z`).*
