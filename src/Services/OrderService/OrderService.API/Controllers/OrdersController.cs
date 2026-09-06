@@ -37,7 +37,7 @@ public sealed class OrdersController(IOrderService orderService, ILogger<OrdersC
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Create([FromBody] CreateOrderRequest request, CancellationToken ct)
+    public async Task<ActionResult<OrderResponse>> Create([FromBody] CreateOrderRequest request, CancellationToken ct)
     {
         if (!TryGetCaller(out var userId, out _))
             return Unauthorized(new { message = "Invalid token." });
@@ -58,7 +58,7 @@ public sealed class OrdersController(IOrderService orderService, ILogger<OrdersC
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    public async Task<ActionResult<OrderResponse>> GetById(Guid id, CancellationToken ct)
     {
         if (!TryGetCaller(out var userId, out var role))
             return Unauthorized(new { message = "Invalid token." });
@@ -70,7 +70,7 @@ public sealed class OrdersController(IOrderService orderService, ILogger<OrdersC
 
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<OrderResponse>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> List(CancellationToken ct)
+    public async Task<ActionResult<IReadOnlyList<OrderResponse>>> List(CancellationToken ct)
     {
         if (!TryGetCaller(out var userId, out var role))
             return Unauthorized(new { message = "Invalid token." });
@@ -83,7 +83,7 @@ public sealed class OrdersController(IOrderService orderService, ILogger<OrdersC
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateStatusRequest request, CancellationToken ct)
+    public async Task<ActionResult<OrderResponse>> UpdateStatus(Guid id, [FromBody] UpdateStatusRequest request, CancellationToken ct)
     {
         if (!TryGetCaller(out var actorId, out var role))
             return Unauthorized(new { message = "Invalid token." });
