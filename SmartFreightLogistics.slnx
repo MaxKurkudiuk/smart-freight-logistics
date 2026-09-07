@@ -28,5 +28,7 @@
     <Project Path="tests/IntegrationService.Tests.Integration/IntegrationService.Tests.Integration.csproj" />
     <Project Path="tests/OrderService.Tests.Integration/OrderService.Tests.Integration.csproj" />
     <Project Path="tests/OrderService.Tests.Unit/OrderService.Tests.Unit.csproj" />
+    <Project Path="tests/TrackingService.Tests.Integration/TrackingService.Tests.Integration.csproj" />
+    <Project Path="tests/TrackingService.Tests.Unit/TrackingService.Tests.Unit.csproj" />
   </Folder>
 </Solution>
