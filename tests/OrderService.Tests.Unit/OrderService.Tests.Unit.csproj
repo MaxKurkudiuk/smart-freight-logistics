@@ -29,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\BuildingBlocks\Caching\BuildingBlocks.Caching.csproj" />
     <ProjectReference Include="..\..\src\Services\OrderService\OrderService.Domain\OrderService.Domain.csproj" />
     <ProjectReference Include="..\..\src\Services\OrderService\OrderService.Application\OrderService.Application.csproj" />
   </ItemGroup>

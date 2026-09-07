@@ -16,7 +16,7 @@ public static class CacheServiceCollectionExtensions
     {
         var redisCs = configuration.GetConnectionString("Redis");
 
-        if (!string.IsNullOrWhiteSpace(redisCs))
+        if (!string.IsNullOrWhiteSpace(redisCs) && !redisCs.Contains("YOUR_", StringComparison.Ordinal))
         {
             services.AddStackExchangeRedisCache(o => o.Configuration = redisCs);
         }
