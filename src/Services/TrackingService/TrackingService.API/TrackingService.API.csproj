@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>3f4a5b6c-7890-1234-5678-90abcdef12345</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Caching\BuildingBlocks.Caching.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Logging\BuildingBlocks.Logging.csproj" />
+    <ProjectReference Include="..\TrackingService.Application\TrackingService.Application.csproj" />
+    <ProjectReference Include="..\TrackingService.Infrastructure\TrackingService.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
