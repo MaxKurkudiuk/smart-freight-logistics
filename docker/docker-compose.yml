@@ -38,6 +38,8 @@ services:
     image: redis:7-alpine
     container_name: logistics-redis-cache
     command: redis-server --requirepass ${REDIS_PASSWORD}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "6379:6379"
     volumes:
@@ -45,6 +47,12 @@ services:
     networks:
       - logistics-network
     restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
 
   # --- MESSAGE BROKER: RabbitMQ ---
   logistics-rabbitmq:
@@ -97,6 +105,37 @@ services:
     # build:
     #   context: ..
     #   dockerfile: src/Services/IntegrationService/Dockerfile
+
+  # --- TRACKING: TrackingService (Redis Cache-Aside, No DB) ---
+  tracking-service:
+    image: mcr.microsoft.com/dotnet/aspnet:10.0
+    container_name: logistics-tracking-service
+    depends_on:
+      logistics-cache:
+        condition: service_healthy
+      logistics-rabbitmq:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Redis: "logistics-cache:6379,password=${REDIS_PASSWORD}"
+      RabbitMq__Host: logistics-rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__VHost: /
+      RabbitMq__User: ${RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD}
+      JwtSettings__Secret: ${JWT_SECRET}
+      JwtSettings__Issuer: SmartFreightLogistics.Identity
+      JwtSettings__Audience: SmartFreightLogistics.Gateways
+    ports:
+      - "5004:8080"
+      - "7004:8081"
+    networks:
+      - logistics-network
+    restart: always
+    # build:
+    #   context: ..
+    #   dockerfile: src/Services/TrackingService/Dockerfile
 
 volumes:
   postgres_data:

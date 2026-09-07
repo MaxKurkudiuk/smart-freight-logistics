@@ -1,3 +1,4 @@
+using BuildingBlocks.Caching.Extensions;
 using BuildingBlocks.EventBus.Extensions;
 using BuildingBlocks.Logging;
 using MassTransit;
@@ -12,6 +13,10 @@ builder.AddSharedLogging();
 
 builder.AddOrderDbContext();
 builder.AddOrderAuth();
+if (builder.Environment.IsEnvironment("Testing"))
+    builder.Services.AddInMemoryCaching();
+else
+    builder.AddCaching();
 if (builder.Environment.IsEnvironment("Testing"))
 {
     // Fully isolated, no broker — uses standard MassTransit InMemory, no docker/.env file parsing
