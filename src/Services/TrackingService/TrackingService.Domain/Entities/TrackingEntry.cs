@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using TrackingService.Domain.ValueObjects;
 
 namespace TrackingService.Domain.Entities;
@@ -22,6 +23,7 @@ public sealed class TrackingEntry
 
     private TrackingEntry() { }
 
+    [JsonConstructor]
     private TrackingEntry(Guid orderId, double latitude, double longitude, double? speedKmh, DateTime timestamp, string? notes)
     {
         OrderId = orderId;

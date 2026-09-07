@@ -14,6 +14,7 @@
   </Folder>
   <Folder Name="/src/Services/TrackingService/">
     <Project Path="src/Services/TrackingService/TrackingService.Domain/TrackingService.Domain.csproj" />
+    <Project Path="src/Services/TrackingService/TrackingService.Infrastructure/TrackingService.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/src/Services/OrderService/">
     <Project Path="src/Services/OrderService/OrderService.API/OrderService.API.csproj" />
