@@ -13,6 +13,7 @@
     <Project Path="src/Services/IntegrationService/IntegrationService.csproj" />
   </Folder>
   <Folder Name="/src/Services/TrackingService/">
+    <Project Path="src/Services/TrackingService/TrackingService.Application/TrackingService.Application.csproj" />
     <Project Path="src/Services/TrackingService/TrackingService.Domain/TrackingService.Domain.csproj" />
     <Project Path="src/Services/TrackingService/TrackingService.Infrastructure/TrackingService.Infrastructure.csproj" />
   </Folder>
