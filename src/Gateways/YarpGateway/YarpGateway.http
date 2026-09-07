@@ -137,3 +137,41 @@ Content-Type: application/json
 }
 
 ###
+
+### Gateway: Tracking — PUT without token → 401
+PUT {{Gateway_HostAddress}}/api/tracking/{{createdOrder.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "latitude": 50.45,
+  "longitude": 30.52,
+  "speedKmh": 60,
+  "notes": "no token"
+}
+
+###
+
+### Gateway: Tracking — PUT via YARP (ClientPolicy, uses token from login)
+PUT {{Gateway_HostAddress}}/api/tracking/{{createdOrder.response.body.$.id}}
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.token}}
+
+{
+  "latitude": 50.45,
+  "longitude": 30.52,
+  "speedKmh": 60,
+  "notes": "Kyiv depot"
+}
+
+###
+
+### Gateway: Tracking — GET via YARP
+GET {{Gateway_HostAddress}}/api/tracking/{{createdOrder.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.token}}
+
+###
+
+### Gateway: Tracking — GET health via YARP (anonymous)
+GET {{Gateway_HostAddress}}/api/tracking/health
+
+###
