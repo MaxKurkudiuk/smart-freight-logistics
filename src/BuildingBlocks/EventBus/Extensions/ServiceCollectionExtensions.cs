@@ -25,20 +25,7 @@ public static class ServiceCollectionExtensions
         services.AddMassTransit(x =>
         {
             // consumers added per-service via AddConsumer<T> before this call (or via AddEventBus overload with configure)
-            x.UsingRabbitMq((ctx, cfg) =>
-            {
-                var s = ctx.GetRequiredService<IOptions<RabbitMqSettings>>().Value;
-
-                cfg.Host(s.Host, (ushort)s.Port, s.VHost, h =>
-                {
-                    h.Username(s.User);
-                    h.Password(s.Password);
-                });
-
-                cfg.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(1)));
-
-                cfg.ConfigureEndpoints(ctx);
-            });
+            ConfigureRabbitMq(x);
         });
 
         return services;
@@ -59,23 +46,27 @@ public static class ServiceCollectionExtensions
         builder.Services.AddMassTransit(x =>
         {
             configure(x);
-
-            x.UsingRabbitMq((ctx, cfg) =>
-            {
-                var s = ctx.GetRequiredService<IOptions<RabbitMqSettings>>().Value;
-
-                cfg.Host(s.Host, (ushort)s.Port, s.VHost, h =>
-                {
-                    h.Username(s.User);
-                    h.Password(s.Password);
-                });
-
-                cfg.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(1)));
-
-                cfg.ConfigureEndpoints(ctx);
-            });
+            ConfigureRabbitMq(x);
         });
 
         return builder;
+    }
+
+    private static void ConfigureRabbitMq(IBusRegistrationConfigurator x)
+    {
+        x.UsingRabbitMq((ctx, cfg) =>
+        {
+            var s = ctx.GetRequiredService<IOptions<RabbitMqSettings>>().Value;
+
+            cfg.Host(s.Host, (ushort)s.Port, s.VHost, h =>
+            {
+                h.Username(s.User);
+                h.Password(s.Password);
+            });
+
+            cfg.UseMessageRetry(r => r.Interval(3, TimeSpan.FromSeconds(1)));
+
+            cfg.ConfigureEndpoints(ctx);
+        });
     }
 }

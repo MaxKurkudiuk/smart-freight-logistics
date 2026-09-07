@@ -1,3 +1,4 @@
+using BuildingBlocks.Caching;
 using BuildingBlocks.EventBus.IntegrationEvents;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -10,10 +11,11 @@ using OrderService.Domain.Events;
 
 namespace OrderService.Application.Services;
 
-public sealed class OrderService(IOrderRepository repo, IPublishEndpoint publishEndpoint) : IOrderService
+public sealed class OrderService(IOrderRepository repo, IPublishEndpoint publishEndpoint, ICacheService cache) : IOrderService
 {
     private readonly IOrderRepository _repo = repo;
     private readonly IPublishEndpoint _publishEndpoint = publishEndpoint;
+    private readonly ICacheService _cache = cache;
 
     public async Task<OrderResponse> CreateAsync(Guid clientId, CreateOrderRequest request, CancellationToken ct = default)
     {
@@ -46,28 +48,50 @@ public sealed class OrderService(IOrderRepository repo, IPublishEndpoint publish
             order.ClearDomainEvents();
         }
 
-        return Map(order);
+        var mapped = Map(order);
+        // 5.7 Cache-Aside: populate single + invalidate lists
+        await _cache.SetAsync(CacheKeys.Order(order.Id), mapped, CacheKeys.OrderTtl, ct);
+        await _cache.RemoveAsync(CacheKeys.OrderList(clientId), ct);
+        await _cache.RemoveAsync(CacheKeys.OrderListAll(), ct);
+
+        return mapped;
     }
 
     public async Task<OrderResponse?> GetByIdAsync(Guid orderId, Guid requesterId, string requesterRole, CancellationToken ct = default)
     {
+        // 5.7 Cache-Aside: try cache first, but ownership check must still apply
+        var cached = await _cache.GetAsync<OrderResponse>(CacheKeys.Order(orderId), ct);
+        if (cached is not null)
+        {
+            if (!IsManager(requesterRole) && cached.ClientId != requesterId)
+                return null;
+            return cached;
+        }
+
         var order = await _repo.GetByIdAsync(orderId, ct);
         if (order is null) return null;
 
-        // Ownership: Client sees only own, LogisticsManager sees all (B2B standard  docs/main plan 3.5)
         if (!IsManager(requesterRole) && order.ClientId != requesterId)
-            return null; // 404 semantics — hide existence
+            return null;
 
-        return Map(order);
+        var mapped = Map(order);
+        await _cache.SetAsync(CacheKeys.Order(orderId), mapped, CacheKeys.OrderTtl, ct);
+        return mapped;
     }
 
     public async Task<IReadOnlyList<OrderResponse>> ListAsync(Guid requesterId, string requesterRole, CancellationToken ct = default)
     {
+        var listKey = IsManager(requesterRole) ? CacheKeys.OrderListAll() : CacheKeys.OrderList(requesterId);
+        var cached = await _cache.GetAsync<IReadOnlyList<OrderResponse>>(listKey, ct);
+        if (cached is not null) return cached;
+
         var orders = IsManager(requesterRole)
             ? await _repo.ListAllAsync(ct)
             : await _repo.ListByClientAsync(requesterId, ct);
 
-        return [.. orders.Select(Map)];
+        var mapped = (IReadOnlyList<OrderResponse>)[.. orders.Select(Map)];
+        await _cache.SetAsync(listKey, mapped, CacheKeys.OrderListTtl, ct);
+        return mapped;
     }
 
     public async Task<OrderResponse> UpdateStatusAsync(Guid orderId, Guid actorId, string actorRole, UpdateStatusRequest request, CancellationToken ct = default)
@@ -116,10 +140,17 @@ public sealed class OrderService(IOrderRepository repo, IPublishEndpoint publish
 
         // Reload for response
         var refreshed = await _repo.GetByIdAsync(orderId, ct) ?? order;
-        // Patch in-memory for mapping if reload missed updated values (should not)
         refreshed.Status = request.NewStatus;
         refreshed.UpdatedAt = now;
-        return Map(refreshed);
+        var mapped = Map(refreshed);
+
+        // 5.7 invalidate Cache-Aside entries
+        await _cache.RemoveAsync(CacheKeys.Order(orderId), ct);
+        await _cache.SetAsync(CacheKeys.Order(orderId), mapped, CacheKeys.OrderTtl, ct);
+        await _cache.RemoveAsync(CacheKeys.OrderList(refreshed.ClientId), ct);
+        await _cache.RemoveAsync(CacheKeys.OrderListAll(), ct);
+
+        return mapped;
     }
 
     private static bool IsManager(string role)

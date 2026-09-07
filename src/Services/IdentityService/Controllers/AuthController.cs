@@ -24,7 +24,7 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken ct)
+    public async Task<ActionResult<UserResponse>> Register([FromBody] RegisterRequest request, CancellationToken ct)
     {
         // DataAnnotations already validated by [ApiController]; extra trimming/normalization
         var email = request.Email.Trim().ToLowerInvariant();
@@ -72,7 +72,7 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
+    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var email = request.Email.Trim().ToLowerInvariant();
 
@@ -103,7 +103,7 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
     // Real authenticated profile is GET /api/auth/me below.
     [HttpGet("users/{id:guid}", Name = "GetUserById")]
     [ApiExplorerSettings(IgnoreApi = true)]
-    public async Task<IActionResult> GetMePlaceholder(Guid id, CancellationToken ct)
+    public async Task<ActionResult<UserResponse>> GetMePlaceholder(Guid id, CancellationToken ct)
     {
         var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, ct);
         if (user is null) return NotFound();
@@ -116,7 +116,7 @@ public sealed class AuthController(IdentityDbContext db, IPasswordHasher hasher,
     [HttpGet("me")]
     [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Me(CancellationToken ct)
+    public async Task<ActionResult<UserResponse>> Me(CancellationToken ct)
     {
         var sub = User.FindFirstValue(ClaimTypes.NameIdentifier)
                   ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub)

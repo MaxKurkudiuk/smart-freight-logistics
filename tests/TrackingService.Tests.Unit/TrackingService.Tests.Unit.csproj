@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -30,8 +30,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BuildingBlocks\Caching\BuildingBlocks.Caching.csproj" />
-    <ProjectReference Include="..\..\src\Services\OrderService\OrderService.Domain\OrderService.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Services\OrderService\OrderService.Application\OrderService.Application.csproj" />
+    <ProjectReference Include="..\..\src\Services\TrackingService\TrackingService.Domain\TrackingService.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Services\TrackingService\TrackingService.Application\TrackingService.Application.csproj" />
   </ItemGroup>
 
 </Project>
