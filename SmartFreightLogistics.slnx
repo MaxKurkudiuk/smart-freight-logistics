@@ -12,6 +12,9 @@
     <Project Path="src/Services/IdentityService/IdentityService.csproj" />
     <Project Path="src/Services/IntegrationService/IntegrationService.csproj" />
   </Folder>
+  <Folder Name="/src/Services/TrackingService/">
+    <Project Path="src/Services/TrackingService/TrackingService.Domain/TrackingService.Domain.csproj" />
+  </Folder>
   <Folder Name="/src/Services/OrderService/">
     <Project Path="src/Services/OrderService/OrderService.API/OrderService.API.csproj" />
     <Project Path="src/Services/OrderService/OrderService.Application/OrderService.Application.csproj" />
