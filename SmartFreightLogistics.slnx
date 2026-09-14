@@ -2,6 +2,7 @@
   <Folder Name="/src/" />
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/Caching/BuildingBlocks.Caching.csproj" />
+    <Project Path="src/BuildingBlocks/CQRS/BuildingBlocks.CQRS.csproj" />
     <Project Path="src/BuildingBlocks/EventBus/BuildingBlocks.EventBus.csproj" />
     <Project Path="src/BuildingBlocks/Logging/BuildingBlocks.Logging.csproj" />
   </Folder>

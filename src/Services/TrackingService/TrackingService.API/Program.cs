@@ -38,5 +38,3 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "TrackingService" }));
 
 app.Run();
-
-public partial class Program { }
