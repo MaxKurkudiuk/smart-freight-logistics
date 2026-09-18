@@ -1,0 +1,48 @@
+# 7.6 CI — build (0-warn gate) + all 5 test projects + compose validation.
+# Triggers on every push (incl. features/*) and PR. No secrets: compose
+# validation copies docker/.env.example (placeholders only); tests use
+# Testcontainers (Docker is preinstalled on ubuntu-latest) and the
+# YOUR_* dev-fallback / Testing-env isolation, same as local runs.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore SmartFreightLogistics.slnx
+
+      - name: Build solution (0 warnings expected)
+        run: dotnet build SmartFreightLogistics.slnx --no-restore --nologo -v minimal
+
+      - name: Unit tests (55 + 17)
+        run: |
+          dotnet run --no-build --project tests/OrderService.Tests.Unit/OrderService.Tests.Unit.csproj
+          dotnet run --no-build --project tests/TrackingService.Tests.Unit/TrackingService.Tests.Unit.csproj
+
+      - name: Integration tests (11 + 6 + 3, Testcontainers)
+        run: |
+          dotnet run --no-build --project tests/OrderService.Tests.Integration/OrderService.Tests.Integration.csproj
+          dotnet run --no-build --project tests/TrackingService.Tests.Integration/TrackingService.Tests.Integration.csproj
+          dotnet run --no-build --project tests/IntegrationService.Tests.Integration/IntegrationService.Tests.Integration.csproj
+
+      - name: Validate compose
+        run: |
+          cp docker/.env.example docker/.env
+          docker compose -f docker/docker-compose.yml config --quiet
