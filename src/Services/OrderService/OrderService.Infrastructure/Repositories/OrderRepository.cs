@@ -15,10 +15,10 @@ public sealed class OrderRepository(OrderDbContext db) : IOrderRepository
             .Include(o => o.History)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
 
+    // 6.3 read-model: AsNoTracking without History join (list mapping needs no History)
     public async Task<IReadOnlyList<Order>> ListByClientAsync(Guid clientId, CancellationToken ct = default)
         => await _db.Orders
             .AsNoTracking()
-            .Include(o => o.History)
             .Where(o => o.ClientId == clientId)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync(ct);
@@ -26,7 +26,6 @@ public sealed class OrderRepository(OrderDbContext db) : IOrderRepository
     public async Task<IReadOnlyList<Order>> ListAllAsync(CancellationToken ct = default)
         => await _db.Orders
             .AsNoTracking()
-            .Include(o => o.History)
             .OrderByDescending(o => o.CreatedAt)
             .ToListAsync(ct);
 

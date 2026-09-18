@@ -1,26 +1,25 @@
+using MediatR;
 using TrackingService.Application.DTOs;
 using TrackingService.Domain.Entities;
 using TrackingService.Infrastructure.Repositories;
 
-namespace TrackingService.Application.Services;
+namespace TrackingService.Application.Features.Tracking.Commands.UpdateTracking;
 
 /// <summary>
-/// Cache-Aside over Redis via <see cref="ITrackingRepository"/>.
-/// No DB on Stage 5 — purely hot-data cache with 5m TTL.
+/// 6.5 write side — carries OrderId from controller (ISender.Send).
+/// Handler body moved verbatim from Services/TrackingService.cs:22 UpdateAsync.
 /// </summary>
-public sealed class TrackingAppService(ITrackingRepository repo) : ITrackingService
+public sealed record UpdateTrackingCommand(Guid OrderId, UpdateTrackingRequest Request) : IRequest<TrackingResponse>;
+
+public sealed class UpdateTrackingCommandHandler(ITrackingRepository repo) : IRequestHandler<UpdateTrackingCommand, TrackingResponse>
 {
     private readonly ITrackingRepository _repo = repo;
 
-    public async Task<TrackingResponse?> GetAsync(Guid orderId, CancellationToken ct = default)
+    public async Task<TrackingResponse> Handle(UpdateTrackingCommand command, CancellationToken ct)
     {
-        if (orderId == Guid.Empty) return null;
-        var entry = await _repo.GetAsync(orderId, ct);
-        return entry is null ? null : Map(entry);
-    }
+        var orderId = command.OrderId;
+        var request = command.Request;
 
-    public async Task<TrackingResponse> UpdateAsync(Guid orderId, UpdateTrackingRequest request, CancellationToken ct = default)
-    {
         if (orderId == Guid.Empty) throw new ArgumentException("OrderId is required.", nameof(orderId));
 
         // DataAnnotations already validated by [ApiController]; domain validates again
