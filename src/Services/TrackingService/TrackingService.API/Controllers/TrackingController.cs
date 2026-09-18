@@ -1,18 +1,21 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TrackingService.Application.DTOs;
-using TrackingService.Application.Services;
+using TrackingService.Application.Features.Tracking.Commands.UpdateTracking;
+using TrackingService.Application.Features.Tracking.Queries.GetTracking;
 
 namespace TrackingService.API.Controllers;
 
 [ApiController]
 [Route("api/tracking")]
 [Authorize]
-public sealed class TrackingController(ITrackingService trackingService, ILogger<TrackingController> logger) : ControllerBase
+public sealed class TrackingController(ISender mediator, ILogger<TrackingController> logger) : ControllerBase
 {
-    private readonly ITrackingService _trackingService = trackingService;
+    private readonly ISender _mediator = mediator;
     private readonly ILogger<TrackingController> _logger = logger;
 
     private bool TryGetCaller(out Guid userId, out string role)
@@ -39,9 +42,13 @@ public sealed class TrackingController(ITrackingService trackingService, ILogger
 
         try
         {
-            var response = await _trackingService.UpdateAsync(orderId, request, ct);
+            var response = await _mediator.Send(new UpdateTrackingCommand(orderId, request), ct);
             _logger.LogInformation("Tracking updated {OrderId} by {UserId} lat:{Lat} lon:{Lon}", orderId, userId, request.Latitude, request.Longitude);
             return Ok(response);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = "Validation failed.", errors = ex.Errors.Select(e => e.ErrorMessage) });
         }
         catch (ArgumentException ex) when (ex is ArgumentOutOfRangeException)
         {
@@ -61,9 +68,16 @@ public sealed class TrackingController(ITrackingService trackingService, ILogger
         if (!TryGetCaller(out _, out _))
             return Unauthorized(new { message = "Invalid token." });
 
-        var entry = await _trackingService.GetAsync(orderId, ct);
-        if (entry is null) return NotFound(new { message = "Tracking not found." });
-        return Ok(entry);
+        try
+        {
+            var entry = await _mediator.Send(new GetTrackingQuery(orderId), ct);
+            if (entry is null) return NotFound(new { message = "Tracking not found." });
+            return Ok(entry);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = "Validation failed.", errors = ex.Errors.Select(e => e.ErrorMessage) });
+        }
     }
 
     [HttpGet("health")]
