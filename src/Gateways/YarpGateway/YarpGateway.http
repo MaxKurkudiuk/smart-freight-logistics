@@ -1,5 +1,8 @@
 @Gateway_HostAddress = http://localhost:5000
 @Identity_HostAddress = http://localhost:5001
+@Order_HostAddress = http://localhost:5002
+@Integration_HostAddress = http://localhost:5003
+@Tracking_HostAddress = http://localhost:5004
 
 ### Gateway: Register via YARP — 201 (Anonymous)
 POST {{Gateway_HostAddress}}/api/auth/register
@@ -173,5 +176,30 @@ Authorization: Bearer {{login.response.body.$.token}}
 
 ### Gateway: Tracking — GET health via YARP (anonymous)
 GET {{Gateway_HostAddress}}/api/tracking/health
+
+###
+
+### 7.4 Gateway self — GET /health (anonymous)
+GET {{Gateway_HostAddress}}/health
+
+###
+
+### 7.4 Downstream — Identity /health direct (active probe target)
+GET {{Identity_HostAddress}}/health
+
+###
+
+### 7.4 Downstream — Order /health direct (active probe target)
+GET {{Order_HostAddress}}/health
+
+###
+
+### 7.4 Downstream — Tracking /health direct (active probe target)
+GET {{Tracking_HostAddress}}/health
+
+###
+
+### 7.4 Downstream — Integration /health direct (not routed via YARP)
+GET {{Integration_HostAddress}}/health
 
 ###
