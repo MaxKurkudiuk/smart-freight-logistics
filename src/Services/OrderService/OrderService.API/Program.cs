@@ -3,6 +3,8 @@ using BuildingBlocks.CQRS.Extensions;
 using BuildingBlocks.EventBus.Extensions;
 using BuildingBlocks.Logging;
 using MassTransit;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using OrderService.API.Extensions;
 using OrderService.Application.Features.Orders.Commands.CreateOrder;
 using OrderService.Application.Interfaces;
@@ -33,6 +35,11 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadRepository, OrderReadRepository>();
 builder.Services.AddCqrs(typeof(CreateOrderCommand).Assembly);
 
+// 7.2 HealthChecks — postgres readiness + self liveness
+builder.Services.AddHealthChecks()
+    .AddNpgSql(builder.GetOrderDbConnectionString(), name: "postgres", tags: new[] { "ready" })
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" });
+
 builder.Services.AddControllers();
 
 // Add services to the container.
@@ -54,6 +61,11 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// 7.2 health endpoints — /health (all), /health/ready (deps), /health/live (self)
+app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteHealthResponse });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = r => r.Tags.Contains("ready"), ResponseWriter = WriteHealthResponse });
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = r => r.Tags.Contains("live"), ResponseWriter = WriteHealthResponse });
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -61,3 +73,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+static async Task WriteHealthResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+    await context.Response.WriteAsJsonAsync(new
+    {
+        status = report.Status.ToString(),
+        checks = report.Entries.ToDictionary(e => e.Key, e => e.Value.Status.ToString())
+    });
+}

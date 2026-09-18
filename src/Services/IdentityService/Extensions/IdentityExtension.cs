@@ -8,6 +8,14 @@ public static class IdentityExtension
 {
     public static WebApplicationBuilder AddDbContext(this WebApplicationBuilder builder)
     {
+        builder.Services.AddDbContext<IdentityDbContext>(options =>
+            options.UseNpgsql(builder.GetIdentityDbConnectionString()));
+
+        return builder;
+    }
+
+    public static string GetIdentityDbConnectionString(this WebApplicationBuilder builder)
+    {
         var baseConnectionString = builder.Configuration.GetConnectionString("IdentityDb")
             ?? throw new InvalidOperationException("Connection string 'IdentityDb' not found.");
 
@@ -19,9 +27,6 @@ public static class IdentityExtension
             connectionBuilder.Password = dbPassword;
         }
 
-        builder.Services.AddDbContext<IdentityDbContext>(options =>
-            options.UseNpgsql(connectionBuilder.ConnectionString));
-
-        return builder;
+        return connectionBuilder.ConnectionString;
     }
 }
