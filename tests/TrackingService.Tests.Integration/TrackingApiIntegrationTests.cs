@@ -5,12 +5,16 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using FluentAssertions;
+using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Testcontainers.Redis;
+using TrackingService.Application.DTOs;
+using TrackingService.Application.Features.Tracking.Commands.UpdateTracking;
 using Xunit;
 
 namespace TrackingService.Tests.Integration;
@@ -142,5 +146,19 @@ public sealed class TrackingApiIntegrationTests : IAsyncLifetime
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var res = await _client.GetAsync($"/api/tracking/{Guid.NewGuid()}");
         res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Send_InvalidUpdateCommand_ThrowsValidationException()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var sender = scope.ServiceProvider.GetRequiredService<ISender>();
+
+        var invalid = new UpdateTrackingRequest { Latitude = 91, Longitude = 30.52 };
+
+        var act = () => sender.Send(new UpdateTrackingCommand(Guid.NewGuid(), invalid));
+
+        var ex = await act.Should().ThrowAsync<ValidationException>();
+        ex.Which.Errors.Should().Contain(e => e.PropertyName.Contains(nameof(UpdateTrackingRequest.Latitude)));
     }
 }
