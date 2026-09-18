@@ -1,10 +1,11 @@
 using BuildingBlocks.Caching.Extensions;
+using BuildingBlocks.CQRS.Extensions;
 using BuildingBlocks.EventBus.Extensions;
 using BuildingBlocks.Logging;
 using MassTransit;
 using OrderService.API.Extensions;
+using OrderService.Application.Features.Orders.Commands.CreateOrder;
 using OrderService.Application.Interfaces;
-using OrderService.Application.Services;
 using OrderService.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,7 +29,7 @@ else
 }
 
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
-builder.Services.AddScoped<IOrderService, OrderService.Application.Services.OrderService>();
+builder.Services.AddCqrs(typeof(CreateOrderCommand).Assembly);
 
 builder.Services.AddControllers();
 

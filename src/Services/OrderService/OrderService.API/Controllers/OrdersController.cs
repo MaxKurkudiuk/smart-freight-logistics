@@ -1,9 +1,14 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OrderService.Application.DTOs;
-using OrderService.Application.Interfaces;
+using OrderService.Application.Features.Orders.Commands.CreateOrder;
+using OrderService.Application.Features.Orders.Commands.UpdateOrderStatus;
+using OrderService.Application.Features.Orders.Queries.GetOrderById;
+using OrderService.Application.Features.Orders.Queries.ListOrders;
 using OrderService.Domain.Entities;
 
 namespace OrderService.API.Controllers;
@@ -11,9 +16,9 @@ namespace OrderService.API.Controllers;
 [ApiController]
 [Route("api/orders")]
 [Authorize]
-public sealed class OrdersController(IOrderService orderService, ILogger<OrdersController> logger) : ControllerBase
+public sealed class OrdersController(ISender mediator, ILogger<OrdersController> logger) : ControllerBase
 {
-    private readonly IOrderService _orderService = orderService;
+    private readonly ISender _mediator = mediator;
     private readonly ILogger<OrdersController> _logger = logger;
 
     private bool TryGetCaller(out Guid userId, out string role)
@@ -44,9 +49,14 @@ public sealed class OrdersController(IOrderService orderService, ILogger<OrdersC
 
         try
         {
-            var response = await _orderService.CreateAsync(userId, request, ct);
+            var response = await _mediator.Send(new CreateOrderCommand(userId, request), ct);
             _logger.LogInformation("Order created {OrderId} by {ClientId}", response.Id, userId);
             return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
+        }
+        catch (ValidationException ex)
+        {
+            _logger.LogWarning(ex, "Create order validation failed {ClientId}", userId);
+            return BadRequest(new { message = "Validation failed.", errors = ex.Errors.Select(e => e.ErrorMessage) });
         }
         catch (ArgumentException ex)
         {
@@ -63,9 +73,16 @@ public sealed class OrdersController(IOrderService orderService, ILogger<OrdersC
         if (!TryGetCaller(out var userId, out var role))
             return Unauthorized(new { message = "Invalid token." });
 
-        var order = await _orderService.GetByIdAsync(id, userId, role, ct);
-        if (order is null) return NotFound(new { message = "Order not found." });
-        return Ok(order);
+        try
+        {
+            var order = await _mediator.Send(new GetOrderByIdQuery(id, userId, role), ct);
+            if (order is null) return NotFound(new { message = "Order not found." });
+            return Ok(order);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = "Validation failed.", errors = ex.Errors.Select(e => e.ErrorMessage) });
+        }
     }
 
     [HttpGet]
@@ -75,8 +92,15 @@ public sealed class OrdersController(IOrderService orderService, ILogger<OrdersC
         if (!TryGetCaller(out var userId, out var role))
             return Unauthorized(new { message = "Invalid token." });
 
-        var orders = await _orderService.ListAsync(userId, role, ct);
-        return Ok(orders);
+        try
+        {
+            var orders = await _mediator.Send(new ListOrdersQuery(userId, role), ct);
+            return Ok(orders);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = "Validation failed.", errors = ex.Errors.Select(e => e.ErrorMessage) });
+        }
     }
 
     [HttpPut("{id:guid}/status")]
@@ -90,9 +114,13 @@ public sealed class OrdersController(IOrderService orderService, ILogger<OrdersC
 
         try
         {
-            var response = await _orderService.UpdateStatusAsync(id, actorId, role, request, ct);
+            var response = await _mediator.Send(new UpdateOrderStatusCommand(id, actorId, role, request), ct);
             _logger.LogInformation("Order {OrderId} status -> {NewStatus} by {ActorId}", id, request.NewStatus, actorId);
             return Ok(response);
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { message = "Validation failed.", errors = ex.Errors.Select(e => e.ErrorMessage) });
         }
         catch (KeyNotFoundException)
         {
