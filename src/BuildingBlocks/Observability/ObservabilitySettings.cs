@@ -8,4 +8,5 @@ public sealed class ObservabilitySettings
     public string ServiceName { get; set; } = string.Empty;
     public string? OtlpEndpoint { get; set; }
     public bool EnableConsole { get; set; }
+    public bool EnablePrometheus { get; set; }
 }
