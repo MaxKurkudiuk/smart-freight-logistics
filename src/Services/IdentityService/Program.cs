@@ -1,4 +1,5 @@
 using BuildingBlocks.Logging;
+using BuildingBlocks.Observability.Extensions;
 using IdentityService.Data;
 using IdentityService.Extensions;
 using IdentityService.Services;
@@ -19,6 +20,9 @@ builder.Services.AddControllers();
 
 builder.AddDbContext();
 
+// 7.3 OpenTelemetry — Npgsql source
+builder.AddObservability("IdentityService", sources => sources.TraceSources.Add("Npgsql"));
+
 // 7.2 HealthChecks — postgres readiness + self liveness
 builder.Services.AddHealthChecks()
     .AddNpgSql(builder.GetIdentityDbConnectionString(), name: "postgres", tags: new[] { "ready" })
@@ -27,6 +31,7 @@ builder.Services.AddHealthChecks()
 var app = builder.Build();
 
 app.UseSharedLogging();
+app.UseObservability();
 
 app.UseRouting();
 app.UseAuthentication();

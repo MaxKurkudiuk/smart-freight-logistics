@@ -17,6 +17,7 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\Caching\BuildingBlocks.Caching.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\CQRS\BuildingBlocks.CQRS.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Logging\BuildingBlocks.Logging.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Observability\BuildingBlocks.Observability.csproj" />
     <ProjectReference Include="..\TrackingService.Application\TrackingService.Application.csproj" />
     <ProjectReference Include="..\TrackingService.Infrastructure\TrackingService.Infrastructure.csproj" />
   </ItemGroup>

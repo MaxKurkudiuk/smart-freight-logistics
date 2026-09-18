@@ -1,6 +1,7 @@
 using BuildingBlocks.Caching.Extensions;
 using BuildingBlocks.CQRS.Extensions;
 using BuildingBlocks.Logging;
+using BuildingBlocks.Observability.Extensions;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using TrackingService.API.Extensions;
@@ -20,6 +21,9 @@ builder.AddTrackingAuth();
 builder.Services.AddScoped<ITrackingRepository, RedisTrackingRepository>();
 builder.Services.AddCqrs(typeof(UpdateTrackingCommand).Assembly);
 
+// 7.3 OpenTelemetry — base AspNetCore/HttpClient (Redis IDistributedCache hides the multiplexer, deferred)
+builder.AddObservability("TrackingService");
+
 // 7.2 HealthChecks — redis readiness + self liveness (replaces ad-hoc /health MapGet)
 builder.Services.AddHealthChecks()
     .AddRedis(
@@ -34,6 +38,7 @@ builder.Services.AddOpenApi();
 var app = builder.Build();
 
 app.UseSharedLogging();
+app.UseObservability();
 
 app.UseRouting();
 app.UseAuthentication();

@@ -1,5 +1,6 @@
 using YarpGateway.Extensions;
 using BuildingBlocks.Logging;
+using BuildingBlocks.Observability.Extensions;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
@@ -8,6 +9,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddSharedLogging();
 builder.AddAuth();
+
+// 7.3 OpenTelemetry — base AspNetCore/HttpClient (traceparent flows to downstream clusters)
+builder.AddObservability("YarpGateway");
 
 // 7.2 HealthChecks — self liveness (dependency health per cluster lands in 7.4)
 builder.Services.AddHealthChecks()
@@ -21,6 +25,7 @@ var app = builder.Build();
 
 // One line to activate the Correlation ID middleware at the start of the pipeline
 app.UseSharedLogging();
+app.UseObservability();
 
 app.UseRouting();
 

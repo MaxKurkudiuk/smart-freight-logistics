@@ -1,6 +1,7 @@
 using BuildingBlocks.EventBus;
 using BuildingBlocks.EventBus.Extensions;
 using BuildingBlocks.Logging;
+using BuildingBlocks.Observability.Extensions;
 using IntegrationService.Clients;
 using IntegrationService.Consumers;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -14,6 +15,9 @@ builder.AddSharedLogging();
 
 // 4.6-4.8 No DB — stateless bridge, consumer registered (MassTransit Retry 3×1s via EventBus)
 builder.AddEventBus(x => x.AddConsumer<OrderCreatedConsumer>());
+
+// 7.3 OpenTelemetry — MassTransit source
+builder.AddObservability("IntegrationService", sources => sources.TraceSources.Add("MassTransit"));
 
 // 7.2 HealthChecks — rabbitmq readiness + self liveness (replaces ad-hoc /health MapGet).
 // HealthChecks.Rabbitmq 9.x takes the caller-provided IConnection (long-lived singleton per RabbitMQ guidance).
@@ -53,6 +57,7 @@ builder.Services.AddOpenApi();
 var app = builder.Build();
 
 app.UseSharedLogging();
+app.UseObservability();
 
 app.UseRouting();
 app.UseAuthentication();

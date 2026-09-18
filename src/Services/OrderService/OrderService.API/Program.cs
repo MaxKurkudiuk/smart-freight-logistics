@@ -2,6 +2,8 @@ using BuildingBlocks.Caching.Extensions;
 using BuildingBlocks.CQRS.Extensions;
 using BuildingBlocks.EventBus.Extensions;
 using BuildingBlocks.Logging;
+using BuildingBlocks.Observability;
+using BuildingBlocks.Observability.Extensions;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -35,6 +37,14 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<IOrderReadRepository, OrderReadRepository>();
 builder.Services.AddCqrs(typeof(CreateOrderCommand).Assembly);
 
+// 7.3 OpenTelemetry — Npgsql + MassTransit sources, SmartFreight.Orders meter
+builder.AddObservability("OrderService", sources =>
+{
+    sources.TraceSources.Add("Npgsql");
+    sources.TraceSources.Add("MassTransit");
+    sources.MeterNames.Add(TelemetryMeters.OrdersMeterName);
+});
+
 // 7.2 HealthChecks — postgres readiness + self liveness
 builder.Services.AddHealthChecks()
     .AddNpgSql(builder.GetOrderDbConnectionString(), name: "postgres", tags: new[] { "ready" })
@@ -55,6 +65,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseSharedLogging();
+app.UseObservability();
 
 app.UseRouting();
 app.UseAuthentication();
