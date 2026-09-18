@@ -5,6 +5,7 @@
     <Project Path="src/BuildingBlocks/CQRS/BuildingBlocks.CQRS.csproj" />
     <Project Path="src/BuildingBlocks/EventBus/BuildingBlocks.EventBus.csproj" />
     <Project Path="src/BuildingBlocks/Logging/BuildingBlocks.Logging.csproj" />
+    <Project Path="src/BuildingBlocks/Observability/BuildingBlocks.Observability.csproj" />
   </Folder>
   <Folder Name="/src/Gateways/">
     <Project Path="src/Gateways/YarpGateway/YarpGateway.csproj" />
