@@ -1,7 +1,8 @@
 using BuildingBlocks.Caching.Extensions;
+using BuildingBlocks.CQRS.Extensions;
 using BuildingBlocks.Logging;
 using TrackingService.API.Extensions;
-using TrackingService.Application.Services;
+using TrackingService.Application.Features.Tracking.Commands.UpdateTracking;
 using TrackingService.Infrastructure.Redis;
 using TrackingService.Infrastructure.Repositories;
 
@@ -15,7 +16,7 @@ builder.AddTrackingAuth();
 
 // Application + Infrastructure
 builder.Services.AddScoped<ITrackingRepository, RedisTrackingRepository>();
-builder.Services.AddScoped<ITrackingService, TrackingAppService>();
+builder.Services.AddCqrs(typeof(UpdateTrackingCommand).Assembly);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -38,5 +39,3 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "TrackingService" }));
 
 app.Run();
-
-public partial class Program { }
