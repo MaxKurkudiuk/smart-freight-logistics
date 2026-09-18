@@ -7,6 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <PackageReference Include="MediatR" Version="12.4.1" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\CQRS\BuildingBlocks.CQRS.csproj" />
     <ProjectReference Include="..\TrackingService.Domain\TrackingService.Domain.csproj" />
     <ProjectReference Include="..\TrackingService.Infrastructure\TrackingService.Infrastructure.csproj" />
   </ItemGroup>
