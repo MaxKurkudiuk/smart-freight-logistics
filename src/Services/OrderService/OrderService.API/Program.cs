@@ -6,6 +6,7 @@ using MassTransit;
 using OrderService.API.Extensions;
 using OrderService.Application.Features.Orders.Commands.CreateOrder;
 using OrderService.Application.Interfaces;
+using OrderService.Infrastructure.ReadModels;
 using OrderService.Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +30,7 @@ else
 }
 
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IOrderReadRepository, OrderReadRepository>();
 builder.Services.AddCqrs(typeof(CreateOrderCommand).Assembly);
 
 builder.Services.AddControllers();
