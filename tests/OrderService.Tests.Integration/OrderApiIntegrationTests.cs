@@ -73,6 +73,30 @@ public sealed class OrderApiIntegrationTests : IClassFixture<CustomWebApplicatio
     }
 
     [Fact]
+    public async Task Health_ShouldReturn200()
+    {
+        var response = await _client.GetAsync("/health");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task HealthReady_ShouldReturn200_WhenPostgresUp()
+    {
+        var response = await _client.GetAsync("/health/ready");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task HealthLive_ShouldReturn200()
+    {
+        var response = await _client.GetAsync("/health/live");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task PostOrders_WithClientToken_ShouldReturn201()
     {
         var clientId = Guid.NewGuid();

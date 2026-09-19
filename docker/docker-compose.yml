@@ -96,6 +96,7 @@ services:
       JwtSettings__Audience: SmartFreightLogistics.Gateways
       Rpa__BaseUrl: http://mock-rpa:5004
       OrderService__BaseUrl: http://logistics-order-service:5002
+      Observability__OtlpEndpoint: http://otel-collector:4317
     ports:
       - "5003:8080"
       - "7003:8081"
@@ -119,6 +120,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Redis: "logistics-cache:6379,password=${REDIS_PASSWORD}"
+      Observability__OtlpEndpoint: http://otel-collector:4317
       RabbitMq__Host: logistics-rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__VHost: /
@@ -137,10 +139,52 @@ services:
     #   context: ..
     #   dockerfile: src/Services/TrackingService/Dockerfile
 
+  # --- OBSERVABILITY: OpenTelemetry Collector (OTLP 4317/4318 in, Jaeger/Prometheus out) ---
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.160.0
+    container_name: logistics-otel-collector
+    command: ["--config=/etc/otelcol-contrib/otel-collector.yml"]
+    volumes:
+      - ./otel/otel-collector.yml:/etc/otelcol-contrib/otel-collector.yml
+    ports:
+      - "4317:4317" # OTLP gRPC (also reachable from host-side dev runs)
+      - "4318:4318" # OTLP HTTP
+      - "8889:8889" # Prometheus metrics (OTLP translation)
+      - "13133:13133" # health
+    networks:
+      - logistics-network
+    restart: always
+
+  # --- OBSERVABILITY: Jaeger v2 all-in-one (UI :16686, OTLP native) ---
+  jaeger:
+    image: jaegertracing/jaeger:2.19.0
+    container_name: logistics-jaeger
+    ports:
+      - "16686:16686" # UI
+    networks:
+      - logistics-network
+    restart: always
+
+  # --- OBSERVABILITY: Prometheus (scrapes otel-collector:8889) ---
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    container_name: logistics-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090" # UI
+    networks:
+      - logistics-network
+    restart: always
+    depends_on:
+      - otel-collector
+
 volumes:
   postgres_data:
   redis_data:
   rabbitmq_data:
+  prometheus_data:
 
 networks:
   logistics-network:

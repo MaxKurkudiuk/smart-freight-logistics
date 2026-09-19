@@ -1,5 +1,6 @@
 using BuildingBlocks.Caching;
 using BuildingBlocks.EventBus.IntegrationEvents;
+using BuildingBlocks.Observability;
 using MassTransit;
 using MediatR;
 using OrderService.Application.DTOs;
@@ -49,6 +50,9 @@ public sealed class CreateOrderCommandHandler(
         var order = Order.Create(clientId, cargo);
         await _repo.AddAsync(order, ct);
         await _repo.SaveChangesAsync(ct);
+
+        // 7.3 telemetry — count persisted orders (no-op until an OTel meter listener is attached)
+        TelemetryMeters.OrdersCreated.Add(1, new KeyValuePair<string, object?>("cargo.type", request.CargoType));
 
         // 4.5 publish Domain → Integration (flat DTO, no EF owned VO)
         var domainEvent = order.DomainEvents.OfType<OrderCreatedDomainEvent>().FirstOrDefault();

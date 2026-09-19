@@ -1,10 +1,10 @@
 # Smart Freight Logistics — .NET 10 Microservices
 
-> YARP Gateway + Identity + OrderService + TrackingService + IntegrationService (Clean Architecture, EF Core, JWT, Redis Cache-Aside, MassTransit/RabbitMQ, CQRS via MediatR + FluentValidation, Polly, MTP tests, Testcontainers, structured logging).
+> YARP Gateway + Identity + OrderService + TrackingService + IntegrationService (Clean Architecture, EF Core, JWT, Redis Cache-Aside, MassTransit/RabbitMQ, CQRS via MediatR + FluentValidation, HealthChecks, OpenTelemetry, Polly, MTP tests, Testcontainers, structured logging).
 
-**Status:** Stages 1-6 implemented (Foundation, Identity + JWT/YARP, OrderService CRUD/State Machine/Tests/Seed, Event-Driven DomainEvents → IntegrationEvents → MassTransit/RabbitMQ → IntegrationService RPA Bridge → RpaBot Customs, TrackingService + Redis Cache-Aside + YARP, CQRS: MediatR Commands/Queries + ValidationBehavior + EF read-model + 92 tests). Stage 7 Prod Readiness next.
+**Status:** Stages 1-7 implemented (Foundation, Identity + JWT/YARP, OrderService CRUD/State Machine/Tests/Seed, Event-Driven DomainEvents → IntegrationEvents → MassTransit/RabbitMQ → IntegrationService RPA Bridge → RpaBot Customs, TrackingService + Redis Cache-Aside + YARP, CQRS: MediatR Commands/Queries + ValidationBehavior + EF read-model + 92 tests, Prod Readiness: HealthChecks liveness/readiness + YARP active checks + OpenTelemetry OTLP/Jaeger/Prometheus + CI + 100 tests).
 
-**Stack:** `.NET 10` · `YARP 2.3.0` · `EF Core 10 + Npgsql 10.0.3` · `PostgreSQL 16` · `Redis 7` · `StackExchange.Redis 2.8.37` · `RabbitMQ 3-management-alpine` · `MassTransit 8.3.5` · `MediatR 12.4.1` · `FluentValidation 11.11.0` · `Polly 10.0.0` · `Serilog` · `xUnit v3 MTP` · `Testcontainers.Redis/PostgreSql/RabbitMq` · `Docker Compose`
+**Stack:** `.NET 10` · `YARP 2.3.0` · `EF Core 10 + Npgsql 10.0.3` · `PostgreSQL 16` · `Redis 7` · `StackExchange.Redis 2.8.37` · `RabbitMQ 3-management-alpine` · `MassTransit 8.3.5` · `MediatR 12.4.1` · `FluentValidation 11.11.0` · `AspNetCore.HealthChecks 9.0.0` · `OpenTelemetry 1.18.0` · `SharpAbp Prometheus 6.0.0` · `otel-collector 0.160.0` · `Jaeger 2.19` · `Prometheus v3.14` · `Polly 10.0.0` · `Serilog` · `xUnit v3 MTP` · `Testcontainers.Redis/PostgreSql/RabbitMq` · `Docker Compose` · `GitHub Actions CI`
 
 ---
 
@@ -23,10 +23,12 @@ Client → YARP Gateway :5000 (Client/LogisticsManager/RpaBot policies)
         Caching: BuildingBlocks.Caching (IDistributedCache → Redis/ InMemory fallback, ICacheService GetOrCreateAsync, CacheKeys)
         CQRS: BuildingBlocks.CQRS (MediatR 12.4.1 + ValidationBehavior/LoggingBehavior, FluentValidation 11.11.0, ValidationException → 400)
         EventBus: BuildingBlocks.EventBus (RabbitMqSettings ValidateOnStart, MassTransit Retry 3×1s)
+        HealthChecks: per-service `/health` + `/health/ready` + `/health/live` (NpgSql/Redis/Rabbitmq 9.0.0, self liveness), YARP ActiveHealthCheck per cluster (ConsecutiveFailures `/health` 10s, panic → fast 502 failover)
+        Observability: BuildingBlocks.Observability (OTel 1.18.0 traces/metrics/logs, Npgsql/MassTransit sources, `SmartFreight.Orders` counter, OTLP → collector `:4317` → Jaeger `:16686` + Prometheus `:9090`, SharpAbp `/metrics` scrape)
         Integration: IntegrationService :5003 (No DB, OrderCreatedConsumer → RpaClient POST + OrderStatusClient PUT Customs via RpaBot JWT + Polly)
 ```
 
-Full diagram + flows: [`ARCHITECTURE.md`](./ARCHITECTURE.md). Knowledge graph: `1026 nodes 1985 edges 49 clusters 18 flows` (`node .gitnexus/run.cjs analyze --index-only` `2026-09-18T14:45:01Z`, branch `features/init-CQRS`).
+Full diagram + flows: [`ARCHITECTURE.md`](./ARCHITECTURE.md). Knowledge graph: `1082 nodes 2078 edges 52 clusters 18 flows` (`node .gitnexus/run.cjs analyze --index-only` `2026-09-18`, branch `features/stage-7-prod-readiness`).
 
 ---
 
@@ -40,7 +42,7 @@ Full diagram + flows: [`ARCHITECTURE.md`](./ARCHITECTURE.md). Knowledge graph: `
 
 ```powershell
 copy docker\.env.example docker\.env   # then edit docker\.env: set POSTGRES_PASSWORD, JWT_SECRET (>=32 chars), REDIS_PASSWORD, RABBITMQ_USER, RABBITMQ_PASSWORD
-docker compose -f docker/docker-compose.yml up -d   # logistics-postgres-db :5432, pgadmin :5050, redis :6379 (healthy), logistics-rabbitmq :5672/:15672 (healthy)
+docker compose -f docker/docker-compose.yml up -d   # logistics-postgres-db :5432, pgadmin :5050, redis :6379 (healthy), logistics-rabbitmq :5672/:15672 (healthy), otel-collector :4317/:4318/:8889, jaeger :16686, prometheus :9090
 # reset volumes: docker compose -f docker/docker-compose.yml down -v
 # NOTE (6.9): compose `integration-service`/`tracking-service` entries use the bare `aspnet:10.0` image with no app payload (`build:` commented out) — they crash-loop. Run :5003/:5004 via `dotnet run` locally until Dockerfiles exist.
 ```
@@ -146,8 +148,8 @@ Invoke-RestMethod -Method GET -Uri http://localhost:5000/api/auth/me -Headers @{
 | `YarpGateway` | `5000` | `7000` | `ReverseProxy` `identity-route /api/auth/{**catch-all} → 5001`, `tracking-route /api/tracking/{**catch-all} → 5004` (no `AuthorizationPolicy`, service enforces), `rpa-status-route PUT /api/orders/{id}/status → 5002` (no `AuthorizationPolicy`, `OrderService` enforces `RpaBot→Customs`), `order-route /api/orders/{**catch-all} → 5002` `ClientPolicy` |
 | `IdentityService` | `5001` | `7001` | `POST /api/auth/register 201`, `POST /api/auth/login 200 {token,expiresAt}`, `GET /api/auth/me 200` |
 | `OrderService.API` | `5002` | `7002` | `POST /api/orders 201` `[ClientPolicy]`, `GET /api/orders 200` (Client own / Manager all, **Cache-Aside** `order:list:{client}/all` `OrderListTtl 2m`), `GET /{id} 200/404` (**Cache-Aside** `order:{id}` `OrderTtl 2m`), `PUT /{id}/status 200/403/409` (`RpaBot` only `Customs`, invalidates `order:*`) |
-| `TrackingService` | `5004` | `7004` | `PUT /api/tracking/{orderId} 200` `[ClientPolicy]` `lat/lon/speed/notes` → `Redis tracking:{orderId} TTL 5m`, `GET /api/tracking/{orderId} 200/404`, `GET /health 200` |
-| `IntegrationService` | `5003` | `7003` | `GET /health 200 {status:Healthy}`, consumes `OrderCreatedIntegrationEvent` via `RabbitMQ` `logistics-rabbitmq:5672` `OrderCreatedConsumer` → `RpaClient POST api/customs/declarations` (`Rpa:BaseUrl`) → `OrderStatusClient PUT api/orders/{id}/status Customs` with `RpaBot JWT` `Polly 3×2^retry` `CircuitBreaker 5/30s` |
+| `TrackingService` | `5004` | `7004` | `PUT /api/tracking/{orderId} 200` `[ClientPolicy]` `lat/lon/speed/notes` → `Redis tracking:{orderId} TTL 5m`, `GET /api/tracking/{orderId} 200/404`, `GET /health + /ready + /live 200` (Redis check), `GET /metrics 200` (SharpAbp Prometheus) |
+| `IntegrationService` | `5003` | `7003` | `GET /health + /ready + /live 200` (RabbitMQ check), `GET /metrics 200`, consumes `OrderCreatedIntegrationEvent` via `RabbitMQ` `logistics-rabbitmq:5672` `OrderCreatedConsumer` → `RpaClient POST api/customs/declarations` (`Rpa:BaseUrl`) → `OrderStatusClient PUT api/orders/{id}/status Customs` with `RpaBot JWT` `Polly 3×2^retry` `CircuitBreaker 5/30s` |
 
 No `UseHttpsRedirection` on services (removed for `http` dev via `5000`); `YarpGateway` also removed to avoid `307` stripping `Authorization`.
 
@@ -177,19 +179,21 @@ dotnet run --project tests/OrderService.Tests.Unit
 # Passed 55 (OrderStatusTransitions matrix, Weight/Origin, TransitionTo, handler tests via CreateOrder/UpdateOrderStatus/GetOrderById/ListOrders handlers incl. cache-hit, FluentValidation validator tests)
 dotnet run --project tests/TrackingService.Tests.Unit
 # Passed 17 (GeoCoordinate Validate, TrackingEntry Create/Update/Notes, CacheKeys TTL, UpdateTracking/GetTracking handler tests, UpdateTrackingCommandValidator tests)
+dotnet run --project tests/Observability.Tests.Unit
+# Passed 3 (ObservabilitySettings defaults, AddObservability registers ServiceName, config override wins)
 
 # integration OrderService (Testcontainers, real postgres:16-alpine via Docker, InMemory for RabbitMQ/Caching when Testing)
 dotnet run --project tests/OrderService.Tests.Integration
-# Passed 11 (WebApplicationFactory + Testcontainers.PostgreSql, MigrateAsync via EnsureCreated, JwtHelper HS256 same Secret, WebApplicationFactory + HttpClient 401/201/400/403/404/409, ownership, state machine, ISender direct ValidationException via ValidationBehavior, InMemory loopback://localhost/ + DistributedMemoryCache fallback for Cache-Aside)
+# Passed 14 (WebApplicationFactory + Testcontainers.PostgreSql, MigrateAsync via EnsureCreated, JwtHelper HS256 same Secret, WebApplicationFactory + HttpClient 401/201/400/403/404/409, ownership, state machine, /health + /ready + /live 200, ISender direct ValidationException via ValidationBehavior, InMemory loopback://localhost/ + DistributedMemoryCache fallback for Cache-Aside)
 
 # integration TrackingService (Testcontainers.Redis + WebApplicationFactory + HttpClient YARP-like health/CRUD)
 dotnet run --project tests/TrackingService.Tests.Integration
-# Passed 6 (Testcontainers.Redis 7-alpine + WebApplicationFactory health 200, PUT without token 401, PUT invalid lat 400, PUT+GET 200 Cache-Aside tracking:{id} second GET hit, GET 404, ISender direct ValidationException; Environment.SetEnvironmentVariable Jwt+Redis before factory to override placeholder)
+# Passed 8 (Testcontainers.Redis 7-alpine + WebApplicationFactory health/ready/live 200, PUT without token 401, PUT invalid lat 400, PUT+GET 200 Cache-Aside tracking:{id} second GET hit, GET 404, ISender direct ValidationException; Environment.SetEnvironmentVariable Jwt+Redis before factory to override placeholder)
 
 # integration IntegrationService (MassTransit.TestFramework InMemoryTestHarness + Testcontainers.RabbitMq)
 dotnet run --project tests/IntegrationService.Tests.Integration
 # Passed 3 (OrderCreatedConsumer: Publish OrderCreatedIntegrationEvent → RpaClient mock true → OrderStatusClient MarkCustoms Once; false → Never; Throws → Retry)
-# total 92 (55+17+11+6+3)
+# total 100 (55+17+3+14+8+3)
 ```
 
 `OrderService Integration` uses `CustomWebApplicationFactory : WebApplicationFactory<Program>` `IAsyncLifetime` `PostgreSqlBuilder` `sfl_order_db_test` `EnsureDeleted+EnsureCreated` per test, `JwtHelper` `test-secret-must-be-at-least-32-chars-...` (isolated, not `user-secrets`), `UseEnvironment Testing` → `InMemory` `loopback://localhost/` (`RabbitMq`) + `DistributedMemoryCache` (`YOUR_` guard) (fully isolated, no `docker/.env` file parsing). `TrackingService Integration` uses `Testcontainers.Redis` `RedisBuilder` + `WebApplicationFactory` `Environment.SetEnvironmentVariable JwtSettings__Secret/ConnectionStrings__Redis` before host. `IntegrationService` uses `MassTransit.TestFramework InMemoryTestHarness` `Moq IRpaClient/IOrderStatusClient`.
@@ -204,27 +208,29 @@ src/
   BuildingBlocks/Caching          StackExchange.Redis 2.8.37 + IDistributedCache, CacheKeys (TrackingTtl 5m/Order 2m), ICacheService GetOrCreateAsync, RedisCacheService
   BuildingBlocks/CQRS             MediatR 12.4.1 + FluentValidation 11.11.0, ValidationBehavior/LoggingBehavior IPipelineBehavior, CqrsExtensions.AddCqrs (ValidationException → 400)
   BuildingBlocks/EventBus         MassTransit 8.3.5 + RabbitMQ 3-management-alpine, RabbitMqSettings ValidateOnStart, OrderCreatedIntegrationEvent
-  Gateways/YarpGateway            YARP :5000 → 5001/5002/5004, AuthExtension Client/LogisticsManager/RpaBot (tracking-route /api/tracking/{**catch-all} →5004, rpa-status-route PUT /api/orders/{id}/status)
+  BuildingBlocks/Observability      OpenTelemetry 1.18.0 (traces/metrics/logs, Npgsql/MassTransit sources, SmartFreight.Orders counter, OTLP + console exporters) + SharpAbp Prometheus 6.0.0 scrape, ObservabilitySettings/ServiceName, AddObservability/ObservabilitySources (hosts carry direct refs — VS drops P2P transitives)
+  Gateways/YarpGateway            YARP :5000 → 5001/5002/5004, AuthExtension Client/LogisticsManager/RpaBot (tracking-route /api/tracking/{**catch-all} →5004, rpa-status-route PUT /api/orders/{id}/status), ActiveHealthCheck per cluster (ConsecutiveFailures /health 10s, HealthyOrPanic → fast 502 failover)
   Services/IdentityService        User, IdentityDbContext, PasswordHasher, JwtTokenGenerator, AuthController, IdentitySeeder
   Services/OrderService/
     OrderService.Domain           Order/CargoDetails/StatusHistory, OrderStatusTransitions, Events IDomainEvent/OrderCreatedDomainEvent
     OrderService.Application      DTOs sealed record, IOrderRepository + IOrderReadRepository, Features/Orders Commands (CreateOrder/UpdateOrderStatus + validators) / Queries (GetOrderById + validator / ListOrders), OrderReadModel projection, Mappings/OrderCreatedIntegrationMapper (obsolete IOrderService/OrderService shims removed in 6.8 cleanup)
     OrderService.Infrastructure   OrderDbContext (OwnsOne Cargo, History Field), OrderRepository (ExecuteUpdate), ReadModels/OrderReadRepository (AsNoTracking Select, no History join), OrderSeeder
-    OrderService.API              OrdersController → ISender (ValidationException → 400, DomainException → 409), AuthExtensions, Program (IsDevelopment SeedAsync, AddCqrs + AddScoped IOrderRepository/IOrderReadRepository, AddCaching InMemory when Testing + AddEventBus)
+    OrderService.API              OrdersController → ISender (ValidationException → 400, DomainException → 409), AuthExtensions, Program (IsDevelopment SeedAsync, AddCqrs + AddScoped IOrderRepository/IOrderReadRepository, AddCaching InMemory when Testing + AddEventBus, AddObservability Npgsql/MassTransit/SmartFreight.Orders + HealthChecks postgres + /health + /ready + /live)
   Services/TrackingService/
     TrackingService.Domain        TrackingEntry (OrderId, Lat/Lon [90/180], Speed, Timestamp, Notes), GeoCoordinate ValueObject [JsonConstructor]
     TrackingService.Infrastructure ITrackingRepository, RedisTrackingRepository (tracking:{orderId} via ICacheService)
     TrackingService.Application   DTOs UpdateTrackingRequest/TrackingResponse, Features/Tracking Commands (UpdateTracking + validator) / Queries (GetTracking) (obsolete ITrackingService/TrackingAppService shims removed in 6.8 cleanup)
-    TrackingService.API           TrackingController → ISender (ValidationException → 400), AuthExtensions, Program (AddCaching + AddTrackingAuth + AddCqrs), appsettings Redis placeholder
-  Services/IntegrationService     (No DB, Stateless) MassTransit Consumer OrderCreatedConsumer → RpaClient + OrderStatusClient (HttpClient + Polly + RpaBot JWT), Program :5003, /health
+    TrackingService.API           TrackingController → ISender (ValidationException → 400), AuthExtensions, Program (AddCaching + AddTrackingAuth + AddCqrs + AddObservability + HealthChecks Redis + /health + /ready + /live), appsettings Redis placeholder
+  Services/IntegrationService     (No DB, Stateless) MassTransit Consumer OrderCreatedConsumer → RpaClient + OrderStatusClient (HttpClient + Polly + RpaBot JWT), Program :5003, HealthChecks RabbitMQ (singleton IConnection) + AddObservability MassTransit + /health + /ready + /live
 tests/
   OrderService.Tests.Unit         xUnit v3 MTP, FluentAssertions, Moq (55, handlers + validators + IOrderReadRepository)
-  OrderService.Tests.Integration  Testcontainers.PostgreSql, WebApplicationFactory, JwtHelper (11, InMemory loopback + InMemory cache + ISender ValidationException)
+  Observability.Tests.Unit        xUnit v3 MTP, FluentAssertions (3, ObservabilitySettings defaults + AddObservability ServiceName/config)
+  OrderService.Tests.Integration  Testcontainers.PostgreSql, WebApplicationFactory, JwtHelper (14, InMemory loopback + InMemory cache + /health + /ready + /live + ISender ValidationException)
   TrackingService.Tests.Unit      xUnit v3 MTP, FluentAssertions, Moq (17, GeoCoordinate/TrackingEntry/CacheKeys + handlers + UpdateTrackingCommandValidator)
-  TrackingService.Tests.Integration Testcontainers.Redis 4.2.0, WebApplicationFactory, FluentAssertions (6, health/401/400/PUT+GET Cache-Aside 200/404, ISender ValidationException, env var override)
+  TrackingService.Tests.Integration Testcontainers.Redis 4.2.0, WebApplicationFactory, FluentAssertions (8, health/ready/live + 401/400/PUT+GET Cache-Aside 200/404, ISender ValidationException, env var override)
   IntegrationService.Tests.Integration  MassTransit.TestFramework InMemoryTestHarness, Testcontainers.RabbitMq, Moq IRpaClient/IOrderStatusClient (3)
 docker/
-  docker-compose.yml              postgres:16-alpine (sfl_identity_db, sfl_order_db), pgadmin :5050, redis :6379 (healthy, REDIS_PASSWORD env), rabbitmq :5672/:15672 (healthy), integration-service :5003:8080, tracking-service :5004:8080 (depends_on redis/rabbitmq healthy)
+  docker-compose.yml              postgres:16-alpine (sfl_identity_db, sfl_order_db), pgadmin :5050, redis :6379 (healthy, REDIS_PASSWORD env), rabbitmq :5672/:15672 (healthy), integration-service :5003:8080, tracking-service :5004:8080 (depends_on redis/rabbitmq healthy), otel-collector :4317/:4318/:8889 (0.160.0), jaeger :16686 (2.19), prometheus :9090 (v3.14, scrapes collector)
   .env / .env.example             POSTGRES_PASSWORD, JWT_SECRET, REDIS_PASSWORD, RABBITMQ_USER, RABBITMQ_PASSWORD
 docs/
   Smart Freight Logistics main plan.md  Roadmap 1-7 (Stages 1-6 done, 6.1-6.9 detailed, 7 planned)
@@ -240,6 +246,8 @@ ARCHITECTURE.md                   Codebase stats — nodes/edges/clusters/flows 
 - `401 Unauthorized` on `GET /api/auth/me` via `5000` → check `# @name login` is directly above `POST` (not above `###`), and `Authorization: Bearer {{login.response.body.$.token}}` uses `.$.token` (not `$.token`), and the same `user-secrets` dev `JwtSettings:Secret` is set for all services (`Identity`+`Yarp`+`Order`+`Integration`+`Tracking` — a missing secret validates against the `YOUR_SECRET_JWT_KEY` placeholder and rejects every token).
 - `42P01: relation "Orders" does not exist` on `POST /api/orders` → `OrderService` `sfl_order_db` not migrated — `OrderService.API` `Program` `MigrateAsync` runs on startup, or `dotnet ef database update --project src/Services/OrderService/OrderService.Infrastructure --startup-project src/Services/OrderService/OrderService.API` with `DatabaseSettings__Password`.
 - `DbUpdateConcurrencyException 0 rows` on `PUT /status` → fixed via `ExecuteUpdate` `TryUpdateStatusWithHistoryAsync` (bypasses tracking).
+- `FileNotFoundException OpenTelemetry.*` on VS F5 (but CLI builds fine) → VS drops project-to-project transitive packages: hosts carry direct `PackageReference`s for every runtime-needed OTel package (see host csproj files). After hand-editing refs, force `dotnet restore --force` and verify `bin` contents.
+- `NU1605 package downgrade as error` after adding a package with deep chains (ABP/OTel pull `Microsoft.Extensions.* >= 10.0.9`) → bump stale direct pins (`OrderService.Infrastructure` `10.0.0 → 10.0.9`).
 
 ---
 
@@ -253,10 +261,10 @@ ARCHITECTURE.md                   Codebase stats — nodes/edges/clusters/flows 
 | 4 Event-Driven | MassTransit 8.3.5 + RabbitMQ 3-management-alpine `OrderCreatedDomainEvent` → `OrderCreatedIntegrationEvent` flat DTO, `BuildingBlocks.EventBus` `ValidateOnStart` `Retry 3×1s`, `OrderService` `IPublishEndpoint` + `InMemory` when `Testing`, `IntegrationService` `No DB` `OrderCreatedConsumer` → `RpaClient` `POST` + `OrderStatusClient` `PUT Customs` `RpaBot JWT` `Polly` `:5003`, `Yarp rpa-status-route` | ✅ |
 | 5 Tracking | `BuildingBlocks.Caching` `StackExchange.Redis` `CacheKeys 5m/2m` `TrackingService` `Domain/Infrastructure/Application/API` `RedisTrackingRepository` `TrackingAppService` `YARP tracking-route` `OrderService Cache-Aside` `70 tests` `10+5` `Testcontainers.Redis` | ✅ |
 | 6 CQRS | MediatR 12.4.1 + FluentValidation 11.11.0, `BuildingBlocks.CQRS` pipeline, Order/Tracking Commands/Queries + validators, `OrdersController`/`TrackingController` → `ISender`, EF `OrderReadModel` projection (`IOrderReadRepository`), obsolete service shims removed, `92 tests` (`55+17+11+6+3`) | ✅ |
-| 7 Prod | OpenTelemetry, HealthChecks | ⏳ |
+| 7 Prod | OTel 1.18.0 + SharpAbp Prometheus 6.0.0, HealthChecks 9.0.0 liveness/readiness, YARP active checks, collector 0.160.0 + Jaeger 2.19 + Prometheus v3.14, CI, `100 tests` (`55+17+3+14+8+3`) | ✅ |
 
 `gitnexus: node .gitnexus/run.cjs analyze --index-only` (auto `npx`/`bunx`), `git status` before `detect_changes`.
 
 ---
 
-*Generated for implemented Stages 1-6. To refresh graph: `node .gitnexus/run.cjs analyze --index-only` (now `1026 nodes 1985 edges 49 clusters 18 flows` `2026-09-18T14:45:01Z` branch `features/init-CQRS`, `20 projects` + `BuildingBlocks.CQRS`, `92 tests`).*
+*Generated for implemented Stages 1-7. To refresh graph: `node .gitnexus/run.cjs analyze --index-only` (now `1082 nodes 2078 edges 52 clusters 18 flows` `2026-09-18` branch `features/stage-7-prod-readiness`, `22 projects` + `BuildingBlocks.Observability`, `100 tests`).*

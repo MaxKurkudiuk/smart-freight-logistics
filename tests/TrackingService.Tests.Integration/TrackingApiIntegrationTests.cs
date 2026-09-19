@@ -100,6 +100,20 @@ public sealed class TrackingApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task HealthReady_ShouldReturn200_WhenRedisUp()
+    {
+        var res = await _client.GetAsync("/health/ready");
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task HealthLive_ShouldReturn200()
+    {
+        var res = await _client.GetAsync("/health/live");
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task Put_WithoutToken_ShouldReturn401()
     {
         var id = Guid.NewGuid();

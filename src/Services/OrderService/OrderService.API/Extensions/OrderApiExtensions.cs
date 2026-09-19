@@ -8,6 +8,14 @@ public static class OrderApiExtensions
 {
     public static WebApplicationBuilder AddOrderDbContext(this WebApplicationBuilder builder)
     {
+        builder.Services.AddDbContext<OrderDbContext>(options =>
+            options.UseNpgsql(builder.GetOrderDbConnectionString()));
+
+        return builder;
+    }
+
+    public static string GetOrderDbConnectionString(this WebApplicationBuilder builder)
+    {
         var baseConnectionString = builder.Configuration.GetConnectionString("OrderDb")
             ?? throw new InvalidOperationException("Connection string 'OrderDb' not found.");
 
@@ -17,9 +25,6 @@ public static class OrderApiExtensions
         if (!string.IsNullOrWhiteSpace(dbPassword))
             connectionBuilder.Password = dbPassword;
 
-        builder.Services.AddDbContext<OrderDbContext>(options =>
-            options.UseNpgsql(connectionBuilder.ConnectionString));
-
-        return builder;
+        return connectionBuilder.ConnectionString;
     }
 }
