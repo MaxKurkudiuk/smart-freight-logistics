@@ -1,7 +1,10 @@
 using BuildingBlocks.Logging;
+using BuildingBlocks.Observability.Extensions;
 using IdentityService.Data;
 using IdentityService.Extensions;
 using IdentityService.Services;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,14 +20,28 @@ builder.Services.AddControllers();
 
 builder.AddDbContext();
 
+// 7.3 OpenTelemetry — Npgsql source
+builder.AddObservability("IdentityService", sources => sources.TraceSources.Add("Npgsql"));
+
+// 7.2 HealthChecks — postgres readiness + self liveness
+builder.Services.AddHealthChecks()
+    .AddNpgSql(builder.GetIdentityDbConnectionString(), name: "postgres", tags: new[] { "ready" })
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" });
+
 var app = builder.Build();
 
 app.UseSharedLogging();
+app.UseObservability();
 
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// 7.2 health endpoints — /health (all), /health/ready (deps), /health/live (self)
+app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteHealthResponse });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = r => r.Tags.Contains("ready"), ResponseWriter = WriteHealthResponse });
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = r => r.Tags.Contains("live"), ResponseWriter = WriteHealthResponse });
 
 if (app.Environment.IsDevelopment())
 {
@@ -35,3 +52,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+static async Task WriteHealthResponse(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json";
+    await context.Response.WriteAsJsonAsync(new
+    {
+        status = report.Status.ToString(),
+        checks = report.Entries.ToDictionary(e => e.Key, e => e.Value.Status.ToString())
+    });
+}

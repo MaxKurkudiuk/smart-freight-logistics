@@ -43,3 +43,7 @@ This project is indexed by GitNexus as **smart-freight-logistics** (117 symbols,
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+## Commits
+
+- NEVER commit without explicit user approval. Before every commit, present the pre-commit check (staged files, `git diff --cached --stat`, `detect_changes` verdict) and wait for the user's go-ahead.
